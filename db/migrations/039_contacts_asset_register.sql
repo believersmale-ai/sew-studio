@@ -9,7 +9,7 @@ alter table public.system_menu_settings
     'dashboard', 'customers', 'orders', 'board', 'fittings', 'tasks',
     'quote', 'costing', 'payments', 'projection', 'accra-runs', 'assets',
     'contacts', 'asset-register',
-    'style-assist', 'team', 'community', 'curriculum',
+    'style-assist', 'team', 'community', 'curriculum', 'webinars',
     'progress', 'portfolio', 'certificate', 'messages', 'my-jobs', 'settings'
   ));
 insert into public.system_menu_settings (menu_key)
