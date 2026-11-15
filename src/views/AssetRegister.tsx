@@ -102,8 +102,8 @@ export default function AssetRegister() {
                 const late = a.nextServiceDue && a.nextServiceDue < today && a.status !== "Retired";
                 return (
                   <li key={a.id} className="border-t border-[#EEDFE3] first:border-t-0">
-                    <button type="button" onClick={() => setOpen({ id: a.id })} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-[#FCF8F9]">
-                      <span className="min-w-0">
+                    <button type="button" onClick={() => setOpen({ id: a.id })} className="flex w-full flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-4 text-left hover:bg-[#FCF8F9] sm:px-5">
+                      <span className="min-w-0 flex-1 basis-56">
                         <span className="block font-medium text-[#2F151B]">{a.name}</span>
                         <span className="mt-0.5 block text-sm text-stone-500">
                           {[a.category, a.location, a.assignedName && `With ${a.assignedName}`].filter(Boolean).join(" · ")}

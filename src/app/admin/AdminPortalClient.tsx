@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ADMIN_AREAS } from "@/lib/admin-access";
 import {
   Activity,
   AlertCircle,
@@ -40,6 +41,8 @@ interface AdminProfile {
   id: string;
   email: string;
   fullName: string;
+  isSuper?: boolean;
+  areas?: string[];
 }
 
 interface ShopSummary {
@@ -106,6 +109,10 @@ export function AdminPortalClient() {
     );
   }
   if (!admin) return <AdminLogin onLoggedIn={setAdmin} />;
+  // Delegated admins without the Studios area get a simple home instead of the studios dashboard.
+  if (admin.isSuper === false && !(admin.areas ?? []).includes("studios")) {
+    return <DelegateHome admin={admin} onLogout={() => setAdmin(null)} />;
+  }
   return <AdminDashboard admin={admin} onLogout={() => setAdmin(null)} />;
 }
 
@@ -461,3 +468,28 @@ function ShopDetailPanel({ shopId, onClose, onChanged }: { shopId: string; onClo
 
 function MiniMetric({ label, value, icon: Icon }: { label: string; value: number; icon: React.ComponentType<{ className?: string }> }) { return <div className="rounded-xl border border-slate-200 bg-white p-3"><div className="flex items-center gap-1.5 text-[11px] text-slate-500"><Icon className="size-3.5" />{label}</div><p className="mt-1.5 font-display text-xl font-semibold tabular-nums text-slate-800">{value}</p></div>; }
 function initials(name: string) { return name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]?.toUpperCase() || "").join("") || "SA"; }
+
+function DelegateHome({ admin, onLogout }: { admin: AdminProfile; onLogout: () => void }) {
+  const areas = ADMIN_AREAS.filter((a) => (admin.areas ?? []).includes(a.key) && a.href !== "/admin");
+  async function signOut() {
+    await fetch("/api/admin-auth/logout", { method: "POST" }).catch(() => undefined);
+    onLogout();
+  }
+  return (
+    <main className="min-h-dvh bg-[#FAF4F5] px-4 py-10 sm:px-8">
+      <div className="mx-auto max-w-2xl">
+        <p className="text-xs font-semibold uppercase tracking-[.16em] text-[#85563A]">Platform admin</p>
+        <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Welcome, {admin.fullName}</h1>
+        <p className="mt-2 text-sm text-slate-500">These are the areas the main administrator has given you.</p>
+        <ul className="mt-6 grid gap-3 sm:grid-cols-2">
+          {areas.map((a) => (
+            <li key={a.key}><a href={a.href} className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#800020]/40 hover:shadow-md"><span className="block font-semibold text-slate-900">{a.label}</span><span className="mt-1 block text-sm text-slate-500">{a.hint}</span></a></li>
+          ))}
+          <li><a href="/admin/team" className="block rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-[#800020]/40 hover:shadow-md"><span className="block font-semibold text-slate-900">My password</span><span className="mt-1 block text-sm text-slate-500">Change your sign-in password</span></a></li>
+        </ul>
+        {areas.length === 0 && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">No areas have been given to you yet. Ask the main administrator.</p>}
+        <button type="button" onClick={signOut} className="mt-8 text-sm font-medium text-[#800020] hover:underline">Sign out</button>
+      </div>
+    </main>
+  );
+}

@@ -5,6 +5,7 @@ import { getPool } from "@/lib/db/pool";
 import { menuForApiPath, menuForPagePath } from "@/lib/menu-config";
 import { getPlanEntitlements, requiredPlanForFeature } from "@/lib/plans";
 import { effectiveAccess } from "@/lib/role-access.server";
+import { adminAreaForPath } from "@/lib/admin-access";
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -27,6 +28,41 @@ export async function proxy(request: NextRequest) {
     } catch (error) {
       console.error("[proxy] could not verify system menu status", error);
       return NextResponse.json({ error: "Feature availability could not be verified." }, { status: 503 });
+    }
+  }
+
+  // Platform admins: a super admin can use every admin API; any other admin only the
+  // areas ticked for them in /admin/team. Disabled admins are refused everywhere.
+  const adminArea = adminAreaForPath(pathname);
+  if (adminArea) {
+    const adminToken = request.cookies.get("sew_session")?.value;
+    if (adminToken) {
+      try {
+        const { rows } = await getPool().query(
+          `select a.is_super, a.areas, a.disabled_at
+             from private.sessions s
+             join public.system_admins a on a.id = s.user_id
+            where s.token_hash = $1 and s.expires_at > now()
+            limit 1`,
+          [sha256(adminToken)]
+        );
+        const admin = rows[0] as { is_super: boolean; areas: string[] | null; disabled_at: string | null } | undefined;
+        if (admin) {
+          if (admin.disabled_at) {
+            return NextResponse.json({ error: "This admin account has been disabled." }, { status: 403 });
+          }
+          const allowed = admin.is_super || (adminArea !== "super" && (admin.areas ?? []).includes(adminArea));
+          if (!allowed) {
+            return NextResponse.json(
+              { error: "You do not have access to this area. Ask the main administrator.", code: "ADMIN_NO_ACCESS" },
+              { status: 403 }
+            );
+          }
+        }
+      } catch (error) {
+        console.error("[proxy] could not verify admin access", error);
+        return NextResponse.json({ error: "Admin access could not be verified." }, { status: 503 });
+      }
     }
   }
 

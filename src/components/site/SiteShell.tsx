@@ -1,7 +1,8 @@
 import Link from "next/link";
 import localFont from "next/font/local";
 import type { ReactNode } from "react";
-import { ArrowUpRight, Menu } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
+import { MobileMenu } from "@/components/site/MobileMenu";
 import { BrandLogo } from "@/components/atelier/BrandMark";
 import { loadWebsiteContent } from "@/lib/website-content.server";
 import { isExternalHref, resolveStudioUrl, type WebsiteContent } from "@/lib/website-content";
@@ -46,12 +47,7 @@ function SiteHeader({ content }: { content: WebsiteContent }) {
           <a href={studioUrl} className="inline-flex h-11 items-center gap-2 rounded-full bg-[#800020] px-5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(128,0,32,.18)] transition hover:-translate-y-0.5 hover:bg-[#650019]">
             <span className="whitespace-nowrap"><span className="hidden sm:inline">{nav.enterLabel}</span><span className="sm:hidden">{nav.enterLabelShort}</span></span> <ArrowUpRight className="size-4" />
           </a>
-          <details className="group relative lg:hidden">
-            <summary aria-label="Open menu" className="grid size-11 cursor-pointer list-none place-items-center rounded-full border border-[#eadde0] bg-white text-[#800020] [&::-webkit-details-marker]:hidden"><Menu className="size-5" /></summary>
-            <div className="absolute right-0 top-14 w-64 rounded-2xl border border-[#eadde0] bg-[#fffdfa] p-2 shadow-2xl">
-              {nav.items.map((item) => <NavLink key={`${item.href}-${item.label}`} href={item.href} className="block rounded-xl px-4 py-3 text-sm font-semibold text-[#5b3e46] hover:bg-[#f8edf0] hover:text-[#800020]">{item.label}</NavLink>)}
-            </div>
-          </details>
+          <MobileMenu items={nav.items} />
         </div>
       </div>
     </header>
@@ -78,7 +74,7 @@ function SiteFooter({ content }: { content: WebsiteContent }) {
 /** Wraps a public page with the header and footer. Content comes from the admin-editable website settings. */
 export async function SiteShell({ children }: { children: ReactNode }) {
   const content = await loadWebsiteContent();
-  return <div className={`${serif.variable} ${sans.variable} min-h-dvh bg-[#FCF8F5] font-[family-name:var(--font-sans-site)] text-[#2F151B] antialiased`}><SiteHeader content={content} /><div id="main" role="main">{children}</div><SiteFooter content={content} /></div>;
+  return <div className={`${serif.variable} ${sans.variable} min-h-dvh bg-[#FCF8F5] font-[family-name:var(--font-sans-site)] text-[#2F151B] antialiased`}><a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[70] focus:rounded-full focus:bg-[#800020] focus:px-5 focus:py-3 focus:text-sm focus:font-bold focus:text-white">Skip to content</a><SiteHeader content={content} /><div id="main" role="main" tabIndex={-1} className="outline-none">{children}</div><SiteFooter content={content} /></div>;
 }
 
 export async function LegalPage({ title, children }: { title: string; children: ReactNode }) {

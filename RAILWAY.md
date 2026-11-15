@@ -122,3 +122,15 @@ whether the role can make changes there ("Change"). The owner always has full
 access. **Contacts** and **Asset Register** are owner-only until ticked for
 another role. Stored in `system_role_access` (migration `040`) and enforced on
 the server for every request, not just hidden in the menu.
+
+## Admin team (delegated administrators)
+
+The first admin you create with `npm run create-admin` is a **main
+administrator** with full access. At **/admin/team** a main administrator can add
+other admins and tick exactly which areas each may manage (website, integrations,
+role access, experience & releases, Academy, public trainings, studios, activity
+log). Admins who are not main administrators are blocked from every other admin
+area on the server, can be disabled or have their password reset at any time,
+and can change their own password. Only main administrators can manage admins
+(migration `041`). Admins that existed before this update become main
+administrators automatically.

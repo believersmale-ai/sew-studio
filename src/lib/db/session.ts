@@ -121,6 +121,10 @@ export interface SystemAdminContext {
   db: AppClient;
   adminId: string;
   email: string;
+  /** Can do everything, including managing other admins. */
+  isSuper: boolean;
+  /** Areas a non-super admin may use (see src/lib/admin-access.ts). */
+  areas: string[];
 }
 
 /**
@@ -137,14 +141,19 @@ export async function getSystemAdminSession(): Promise<SystemAdminContext | null
     const user = await db.auth.lookup();
     if (!user) return null;
 
-    const { data: admin } = await db
+    const { data: admin, error } = await db
       .from("system_admins")
-      .select("id, email")
+      .select("id, email, is_super, areas, disabled_at")
       .eq("id", user.id)
-      .single();
-    if (!admin) return null;
+      .maybeSingle();
+    if (error) {
+      // The delegation migration has not been applied yet: every existing admin is a full admin.
+      const { data: legacy } = await db.from("system_admins").select("id, email").eq("id", user.id).maybeSingle();
+      return legacy ? { db, adminId: legacy.id, email: legacy.email, isSuper: true, areas: [] } : null;
+    }
+    if (!admin || admin.disabled_at) return null;
 
-    return { db, adminId: admin.id, email: admin.email };
+    return { db, adminId: admin.id, email: admin.email, isSuper: Boolean(admin.is_super), areas: (admin.areas as string[] | null) ?? [] };
   } catch {
     return null;
   }

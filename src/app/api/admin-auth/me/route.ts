@@ -15,5 +15,5 @@ export async function GET() {
   if (!admin) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
-  return NextResponse.json({ id: admin.id, email: admin.email, fullName: admin.full_name });
+  return NextResponse.json({ id: admin.id, email: admin.email, fullName: admin.full_name, isSuper: ctx.isSuper, areas: ctx.areas });
 }

@@ -65,10 +65,14 @@ export async function POST(req: Request) {
 
     const { data: admin } = await db
       .from("system_admins")
-      .select("id, email, full_name")
+      .select("id, email, full_name, disabled_at")
       .eq("id", data.user.id)
       .maybeSingle();
 
+    if (admin?.disabled_at) {
+      await db.auth.signOut();
+      return NextResponse.json({ error: "This admin account has been disabled." }, { status: 403 });
+    }
     if (!admin) {
       // This login works for shop members and freelancers too — a correct
       // password for one of those doesn't make them a system admin.

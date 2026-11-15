@@ -90,7 +90,7 @@ export function RolesAdmin() {
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-left">
-                  <th scope="col" className="px-4 py-3 font-semibold">Page</th>
+                  <th scope="col" className="sticky left-0 z-10 bg-slate-50 px-4 py-3 font-semibold">Page</th>
                   <th scope="col" className="px-3 py-3 text-center font-semibold text-slate-500">Owner</th>
                   {data.roles.map((r) => <th key={r.key} scope="col" className="px-3 py-3 text-center font-semibold">{r.label}</th>)}
                 </tr>
@@ -105,7 +105,7 @@ export function RolesAdmin() {
                   <FragmentRows key={s.name} name={s.name} colSpan={data.roles.length + 2}>
                     {s.menus.map((m) => (
                       <tr key={m.key} className="border-t border-slate-100">
-                        <th scope="row" className="px-4 py-2.5 text-left font-medium">{m.label}</th>
+                        <th scope="row" className="sticky left-0 z-10 bg-white px-4 py-2.5 text-left font-medium">{m.label}</th>
                         <td className="px-3 py-2.5 text-center text-slate-400"><CheckCircle2 className="mx-auto size-4 text-emerald-600" aria-label="Owner has full access" /></td>
                         {data.roles.map((r) => {
                           const cell = matrix[r.key]?.[m.key] ?? { view: false, edit: false };

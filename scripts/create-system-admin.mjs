@@ -48,8 +48,8 @@ export async function createSystemAdmin(db, { email, password, fullName }) {
       created = true;
     }
     await db.query(
-      `insert into public.system_admins (id, email, full_name) values ($1, $2, $3)
-         on conflict (id) do update set email = excluded.email, full_name = excluded.full_name`,
+      `insert into public.system_admins (id, email, full_name, is_super) values ($1, $2, $3, true)
+         on conflict (id) do update set email = excluded.email, full_name = excluded.full_name, is_super = true, disabled_at = null`,
       [id, emailNorm, name]
     );
     await db.query("commit");
