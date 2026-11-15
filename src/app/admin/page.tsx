@@ -16,6 +16,9 @@ export default function AdminPortalPage() {
         <a href="/admin/website" className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-[#650019] shadow-lg transition hover:bg-[#FBF1F3]">
           Website content
         </a>
+        <a href="/admin/roles" className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-[#650019] shadow-lg transition hover:bg-[#FBF1F3]">
+          Role access
+        </a>
         <a href="/admin/integrations" className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-xs font-semibold text-[#650019] shadow-lg transition hover:bg-[#FBF1F3]">
           Integrations & keys
         </a>

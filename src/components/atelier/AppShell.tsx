@@ -32,6 +32,8 @@ import {
   Wallet,
   Truck,
   Package,
+  Contact,
+  Wrench,
   LineChart,
   ChevronDown,
 } from "lucide-react";
@@ -39,6 +41,7 @@ import { useRole, type Role } from "@/stores/role";
 import { useNav, type ViewKey } from "@/stores/nav";
 import { useAuth } from "@/stores/auth";
 import { useMenuSettings } from "@/stores/menu-settings";
+import { useRoleAccess } from "@/stores/role-access";
 import { menuForView } from "@/lib/menu-config";
 import { cn } from "@/lib/utils";
 import { BrandLogo, BrandMark } from "@/components/atelier/BrandMark";
@@ -88,6 +91,8 @@ const SECTIONS: Record<Role, NavSection[]> = {
         { to: "style-assist", label: "Style Assist", icon: Sparkles },
         { to: "accra-runs", label: "Accra Runs", icon: Truck },
         { to: "assets", label: "Inventory", icon: Package },
+        { to: "contacts", label: "Contacts", icon: Contact },
+        { to: "asset-register", label: "Asset Register", icon: Wrench },
       ],
     },
     {
@@ -293,6 +298,8 @@ const VIEW_META: Record<ViewKey, { label: string; icon: IconType }> = {
   projection: { label: "Business Projection", icon: LineChart },
   "accra-runs": { label: "Accra Runs", icon: Truck },
   assets: { label: "Inventory", icon: Package },
+  contacts: { label: "Contacts", icon: Contact },
+  "asset-register": { label: "Asset Register", icon: Wrench },
   team: { label: "Team", icon: UsersRound },
   community: { label: "Community", icon: MessageSquare },
   progress: { label: "Trainee Progress", icon: GraduationCap },
@@ -338,6 +345,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     void loadMenuSettings();
   }, [loadMenuSettings]);
 
+  // What a platform admin lets this role see and change (/admin/roles).
+  const roleAccess = useRoleAccess((s) => s.data);
+  const loadRoleAccess = useRoleAccess((s) => s.load);
+  useEffect(() => {
+    void loadRoleAccess();
+  }, [loadRoleAccess]);
+
   const shopDisplayName = user?.shop?.name || studioName;
   const planAccess = user?.shop
     ? getPlanEntitlements(user.shop.plan, user.shop.trial_ends_at)
@@ -363,15 +377,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           s.label === "Studio" ? { ...s, items: traineeStudioItems } : s
         )
       : baseSections;
-  const sections = roleSections
+  const visibleSections = roleSections
     .map((section) => ({
       ...section,
       items: section.items.filter((item) => {
         const key = menuForView(item.to);
-        return !key || enabled?.[key] !== false;
+        return !key || (enabled?.[key] !== false && roleAccess?.access[key]?.view !== false);
       }),
     }))
     .filter((section) => section.items.length > 0);
+  // Tools an admin has explicitly opened up to this role, beyond its usual menu.
+  const shownKeys = new Set(roleSections.flatMap((s) => s.items.map((i) => menuForView(i.to))));
+  const grantedItems: NavItem[] = (roleAccess?.granted ?? [])
+    .filter((k) => !shownKeys.has(k) && enabled?.[k] !== false && roleAccess?.access[k]?.view !== false && VIEW_META[k as ViewKey])
+    .map((k) => ({ to: k as ViewKey, label: VIEW_META[k as ViewKey].label, icon: VIEW_META[k as ViewKey].icon }));
+  const sections = grantedItems.length ? [...visibleSections, { label: "Also for you", items: grantedItems }] : visibleSections;
 
   const allItems = sections.flatMap((s) => s.items);
 

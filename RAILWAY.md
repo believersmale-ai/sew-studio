@@ -105,3 +105,20 @@ Platform admins (`/admin`) have two extra pages:
   (migration `037`). A value saved there overrides the matching variable above;
   removing it falls back to the variable. Secrets are encrypted (AES-256-GCM);
   add `SETTINGS_ENCRYPTION_KEY` (long random text) to the service and keep it.
+
+## Contacts and Asset Register pages
+
+Two studio pages (owner menu, under Studio): **Contacts** (suppliers and
+artisans) and **Asset Register** (condition, assigned staff, checkups and a
+maintenance history per asset). Database changes are in migration `039`
+(runs automatically on deploy). A platform admin can switch either page on/off
+under Admin > Experience. The older **Inventory** page is unchanged.
+
+## Role access (who sees and changes what)
+
+Platform admins open **/admin/roles** to choose, for each studio role (Staff,
+Trainer, Trainee, Freelancer), which pages appear in the menu ("See") and
+whether the role can make changes there ("Change"). The owner always has full
+access. **Contacts** and **Asset Register** are owner-only until ticked for
+another role. Stored in `system_role_access` (migration `040`) and enforced on
+the server for every request, not just hidden in the menu.

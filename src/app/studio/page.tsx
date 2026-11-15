@@ -14,6 +14,7 @@ import { Lock, Crown, Eye } from "lucide-react";
 import { BrandMark } from "@/components/atelier/BrandMark";
 import { menuForView, MENU_DEFINITIONS } from "@/lib/menu-config";
 import { useMenuSettings } from "@/stores/menu-settings";
+import { useRoleAccess } from "@/stores/role-access";
 import { getPlanEntitlements, requiredPlanForFeature } from "@/lib/plans";
 import { ExportButtons } from "@/components/atelier/ExportButtons";
 
@@ -44,12 +45,16 @@ const Payments = dynamic(() => import("@/views/Payments").then((m) => m.default)
 const Projection = dynamic(() => import("@/views/Projection").then((m) => m.default), { ssr: false });
 const AccraRuns = dynamic(() => import("@/views/AccraRuns").then((m) => m.default), { ssr: false });
 const Assets = dynamic(() => import("@/views/Assets").then((m) => m.default), { ssr: false });
+const Contacts = dynamic(() => import("@/views/Contacts").then((m) => m.default), { ssr: false });
+const AssetRegister = dynamic(() => import("@/views/AssetRegister").then((m) => m.default), { ssr: false });
 const UserProfile = dynamic(() => import("@/views/UserProfile").then((m) => m.default), { ssr: false });
 
 function CurrentView() {
   const { view } = useNav();
   const enabledMenus = useMenuSettings((state) => state.enabled);
+  const roleAccess = useRoleAccess((state) => state.data);
   const menuKey = menuForView(view);
+  const roleCell = menuKey ? roleAccess?.access[menuKey] : undefined;
   const menu = menuKey ? MENU_DEFINITIONS.find((item) => item.key === menuKey) : undefined;
   if (menuKey && enabledMenus?.[menuKey] === false) {
     return (
@@ -68,8 +73,24 @@ function CurrentView() {
       </div>
     );
   }
+  if (menuKey && roleCell && !roleCell.view) {
+    return (
+      <div className="mx-auto w-full max-w-lg p-5 md:p-8">
+        <div className="rounded-2xl border border-[#E6D4D8] bg-white p-7 text-center shadow-sm sm:p-9">
+          <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#650019]/10 text-[#650019]"><Lock className="size-5" /></span>
+          <h2 className="mt-5 font-display text-2xl font-semibold text-[#3B0010]">You do not have access to {menu?.label ?? "this page"}</h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-stone-500">Your role cannot open this page. If you need it, ask the studio owner.</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <>
+      {menuKey && roleCell && !roleCell.edit && (
+        <div role="status" className="border-b border-[#E6D4D8] bg-[#FBF1F3] px-4 py-3 text-sm text-[#650019] md:px-8">
+          <div className="mx-auto flex max-w-[1400px] items-center gap-3"><Eye className="size-4 shrink-0" /><p>Your role can view this page but not change it.</p></div>
+        </div>
+      )}
       <ViewOnlyBanner menuKey={menuKey} />
       <ViewSwitch view={view} />
     </>
@@ -123,6 +144,8 @@ function ViewSwitch({ view }: { view: ReturnType<typeof useNav.getState>["view"]
     case "projection": return <Projection />;
     case "accra-runs": return <AccraRuns />;
     case "assets": return <Assets />;
+    case "contacts": return <Contacts />;
+    case "asset-register": return <AssetRegister />;
     case "team": return <Team />;
     case "community": return <Community />;
     case "progress": return <Progress />;

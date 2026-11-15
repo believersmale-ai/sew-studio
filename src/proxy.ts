@@ -4,6 +4,7 @@ import type { NextRequest } from "next/server";
 import { getPool } from "@/lib/db/pool";
 import { menuForApiPath, menuForPagePath } from "@/lib/menu-config";
 import { getPlanEntitlements, requiredPlanForFeature } from "@/lib/plans";
+import { effectiveAccess } from "@/lib/role-access.server";
 
 const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -35,7 +36,7 @@ export async function proxy(request: NextRequest) {
     if (token) {
       try {
         const { rows } = await getPool().query(
-          `select sh.plan, sh.trial_ends_at
+          `select sh.plan, sh.trial_ends_at, p.role
              from private.sessions s
              join public.profiles p on p.id = s.user_id
              join public.shops sh on sh.id = p.shop_id
@@ -43,7 +44,18 @@ export async function proxy(request: NextRequest) {
             limit 1`,
           [sha256(token)]
         );
-        const shop = rows[0] as { plan: string; trial_ends_at: string | null } | undefined;
+        const shop = rows[0] as { plan: string; trial_ends_at: string | null; role: string } | undefined;
+
+        // Per-role access set by a platform admin (/admin/roles). Fails closed.
+        if (shop && menuKey && !pathname.startsWith("/api/admin/")) {
+          const role = await effectiveAccess(shop.role, menuKey);
+          if (!role.view) {
+            return NextResponse.json({ error: "Your role does not have access to this page. Ask the studio owner.", code: "ROLE_NO_ACCESS" }, { status: 403 });
+          }
+          if (isApiMutation && !role.edit) {
+            return NextResponse.json({ error: "Your role can view this page but not change it. Ask the studio owner.", code: "ROLE_VIEW_ONLY" }, { status: 403 });
+          }
+        }
 
         if (shop) {
           const access = getPlanEntitlements(shop.plan, shop.trial_ends_at);

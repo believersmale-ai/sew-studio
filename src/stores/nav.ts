@@ -19,6 +19,8 @@ export type ViewKey =
   | "projection"
   | "accra-runs"
   | "assets"
+  | "contacts"
+  | "asset-register"
   | "team"
   | "community"
   | "progress"
