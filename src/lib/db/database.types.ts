@@ -290,6 +290,13 @@ export interface Database {
           ankle: Nullable<number>;
           outseam: Nullable<number>;
           posture: Nullable<string>;
+          extended: Record<string, number>;
+          custom_measurements: Nullable<string>;
+          set_name: Nullable<string>;
+          shoulder_slope: Nullable<string>;
+          garment_type: string;
+          status: string;
+          customer_approval: string;
           notes: Nullable<string>;
           created_at: string;
         };
