@@ -18,6 +18,8 @@ import {
   ShoppingBag,
   Check,
   Save,
+  MoreVertical,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -60,6 +62,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { MeasurementsPanel } from "@/components/atelier/MeasurementsPanel";
 import {
@@ -95,6 +104,13 @@ interface CustomerDetail {
   styleConcepts: StyleConcept[];
 }
 
+/** wa.me needs an international number: 024… becomes 233 24… (Ghana). */
+function whatsappHref(phone: string): string {
+  const d = phone.replace(/\D/g, "");
+  if (!d) return "";
+  return `https://wa.me/${d.startsWith("0") ? `233${d.slice(1)}` : d}`;
+}
+
 export default function CustomerProfile() {
   const { selectedId, go } = useNav();
   const qc = useQueryClient();
@@ -102,6 +118,10 @@ export default function CustomerProfile() {
   const [measureOpen, setMeasureOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const owner = useRole((s) => s.isOwner)();
+  const canSeeMoney = useRole((s) => s.canSeeBusiness)();
+  const canCreate = useRole((s) => s.canCreateOrders)();
+  const [tab, setTab] = useState("overview");
+  const [showAllConcepts, setShowAllConcepts] = useState(false);
 
   const deleteMut = useMutation({
     mutationFn: () => apiDelete(`/api/customers/${selectedId}`),
@@ -129,7 +149,7 @@ export default function CustomerProfile() {
 
   if (!selectedId) {
     return (
-      <div className="p-5 md:p-8 max-w-[1200px] mx-auto w-full">
+      <div className="p-4 sm:p-5 md:p-8 max-w-[1200px] mx-auto w-full">
         <SectionCard bodyClassName="p-0">
           <EmptyState
             icon={Users}
@@ -152,7 +172,7 @@ export default function CustomerProfile() {
 
   if (isLoading) {
     return (
-      <div className="p-5 md:p-8 max-w-[1200px] mx-auto w-full">
+      <div className="p-4 sm:p-5 md:p-8 max-w-[1200px] mx-auto w-full">
         <div className="h-4 w-32 bg-stone-100 rounded shimmer mb-4" />
         <div className="rounded-xl surface-premium border border-[#EEDFE3] p-6 mb-6 flex gap-5 elevate-sm">
           <div className="w-16 h-16 rounded-full shimmer" />
@@ -174,7 +194,7 @@ export default function CustomerProfile() {
 
   if (isError || !data) {
     return (
-      <div className="p-5 md:p-8 max-w-[1200px] mx-auto w-full">
+      <div className="p-4 sm:p-5 md:p-8 max-w-[1200px] mx-auto w-full">
         <button
           onClick={() => go("customers")}
           className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-[#800020] mb-4 transition-colors"
@@ -217,246 +237,298 @@ export default function CustomerProfile() {
   };
 
   const firstName = (customer.name || "").split(" ")[0] || customer.name;
+  const visibleConcepts = showAllConcepts ? styleConcepts : styleConcepts.slice(0, 4);
+  const newOrder = () => go("new-order", { params: { customerId: selectedId } });
+  const openOrder = (id: string) => go("order", { id });
+
+  // At-a-glance numbers for the strip under the header.
+  const sortedOrders = [...orders].sort(
+    (a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime()
+  );
+  const latestOrder = sortedOrders[0];
+  const inProgress = orders.filter((o) => !FINISHED.has(o.status)).length;
+  const bookedValue = orders.reduce((n, o) => n + (Number(o.sellingPrice) || 0), 0);
+  const stats: { label: string; value: string; hideOnPhone?: boolean }[] = [
+    { label: "Orders", value: String(orders.length) },
+    { label: "In progress", value: String(inProgress) },
+    ...(canSeeMoney ? [{ label: "Booked", value: formatCurrency(bookedValue) }] : []),
+    { label: "Last order", value: latestOrder ? shortDate(latestOrder.orderDate) : "None", hideOnPhone: canSeeMoney },
+  ];
+
+  const details: { label: string; value: string | null | undefined; wide?: boolean; href?: string }[] = [
+    { label: "Phone", value: customer.phone, wide: true, href: customer.phone ? `tel:${customer.phone.replace(/[^\d+]/g, "")}` : undefined },
+    { label: "WhatsApp", value: customer.whatsapp, wide: true, href: customer.whatsapp ? whatsappHref(customer.whatsapp) : undefined },
+    { label: "Email", value: customer.email, wide: true, href: customer.email ? `mailto:${customer.email}` : undefined },
+    { label: "Occupation", value: customer.occupation },
+    { label: "Gender", value: customer.gender },
+    { label: "Height / weight", value: customer.height || customer.weight ? `${customer.height ?? "—"} cm / ${customer.weight ?? "—"} kg` : null },
+    { label: "Preferred fit", value: customer.preferredFit },
+    { label: "Skin tone", value: customer.skinTone },
+    { label: "Found us via", value: customer.entrySource ? `${customer.entrySource}${customer.referredBy ? ` (${customer.referredBy})` : ""}` : null },
+  ].filter((d) => !!d.value);
+
+  const styleGroups = [
+    { label: "Favourite colours", value: customer.favouriteColours },
+    { label: "Colours to avoid", value: customer.coloursToAvoid },
+    { label: "Favourite fabrics", value: customer.favouriteFabrics },
+    { label: "Preferred styles", value: customer.preferredStyles },
+  ].filter((g) => !!g.value);
+
+  const quickAction =
+    "grid size-10 shrink-0 place-items-center rounded-lg border border-[#E6D4D8] bg-white text-[#650019] transition-colors hover:bg-[#FBF1F3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C79A45]";
 
   return (
-    <div className="p-5 md:p-8 max-w-[1200px] mx-auto w-full">
+    <div className="p-4 sm:p-5 md:p-8 max-w-[1200px] mx-auto w-full">
       {/* Back link */}
       <button
         onClick={() => go("customers")}
-        className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-[#800020] mb-4 transition-colors"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm text-stone-500 transition-colors hover:text-[#800020]"
       >
         <ArrowLeft className="w-4 h-4" /> Customers
       </button>
 
-      {/* Premium customer header (hero band) */}
-      <div className="rounded-xl surface-premium border border-[#EEDFE3] elevate-md p-6 mb-6 animate-fade-in-up">
-        <div className="flex flex-col md:flex-row md:items-start gap-5">
-          <div
-            className="w-16 h-16 rounded-full bg-[#800020] flex items-center justify-center text-white font-display font-semibold text-2xl shrink-0"
-            aria-hidden
-          >
-            {(customer.name || "?").charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h1
-              className="font-display font-semibold text-[#2F151B] leading-[1.05]"
-              style={{ fontSize: "clamp(28px, 4vw, 36px)" }}
+      {/* Client card: identity, quick actions and key numbers in one compact block */}
+      <div className="mb-4 overflow-hidden rounded-xl border border-[#EEDFE3] surface-premium elevate-md animate-fade-in-up">
+        <div className="p-4 sm:p-5">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div
+              className="flex size-12 shrink-0 items-center justify-center rounded-full bg-[#800020] font-display text-xl font-semibold text-white sm:size-14 sm:text-2xl"
+              aria-hidden
             >
-              {customer.name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-stone-500 mt-2">
-              {customer.phone && (
-                <a
-                  href={`tel:${customer.phone}`}
-                  className="inline-flex items-center gap-1.5 hover:text-[#800020] transition-colors"
-                >
-                  <Phone className="w-3.5 h-3.5" /> {customer.phone}
-                </a>
-              )}
-              {customer.email && (
-                <a
-                  href={`mailto:${customer.email}`}
-                  className="inline-flex items-center gap-1.5 hover:text-[#800020] transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5" /> {customer.email}
-                </a>
-              )}
-              {customer.whatsapp && (
-                <span className="inline-flex items-center gap-1.5">
-                  <MessageSquare className="w-3.5 h-3.5" /> {customer.whatsapp}
-                </span>
-              )}
-              {customer.city && (
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="w-3.5 h-3.5" /> {customer.city}
-                </span>
-              )}
-              {!customer.phone &&
-                !customer.email &&
-                !customer.whatsapp &&
-                !customer.city && (
-                  <span className="italic text-stone-400">No contact info</span>
-                )}
+              {(customer.name || "?").charAt(0).toUpperCase()}
             </div>
-            <div className="flex flex-wrap items-center gap-2 mt-3">
-              {customer.customerType && (
-                <StatusBadge status={customer.customerType} />
-              )}
-              {customer.entrySource && (
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-[#FAF0F2] border border-[#EEDFE3] px-2 py-0.5 text-xs text-stone-600">
-                  <span className="text-[11px] uppercase tracking-[0.15em] text-stone-400">
-                    Source
-                  </span>
-                  <span className="font-medium text-[#2F151B]">
-                    {customer.entrySource}
-                  </span>
-                </span>
-              )}
-              <span className="inline-flex items-center gap-1.5 rounded-md bg-[#800020]/8 border border-[#800020]/20 px-2 py-0.5 text-xs text-[#800020]">
-                <Sparkles className="w-3 h-3" />
-                <span className="font-semibold">
-                  <AnimatedNumber value={customer.loyaltyPoints ?? 0} /> pts
-                </span>
-              </span>
-              {customer.status && customer.status !== "Active" && (
-                <StatusBadge status={customer.status} />
-              )}
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-            <PremiumButton
-              variant="outline"
-              size="md"
-              onClick={() => setEditOpen(true)}
-            >
-              <Pencil className="w-4 h-4" /> Edit
-            </PremiumButton>
-            {owner && (
-              <PremiumButton
-                variant="outline"
-                size="md"
-                onClick={() => setDeleteOpen(true)}
-                className="text-red-700 hover:text-red-700 hover:border-red-300 hover:bg-red-50"
+            <div className="min-w-0 flex-1">
+              <h1
+                className="font-display font-semibold leading-tight text-[#2F151B] break-words"
+                style={{ fontSize: "clamp(20px, 5vw, 28px)" }}
               >
-                <Trash2 className="w-4 h-4" /> Delete
-              </PremiumButton>
+                {customer.name}
+              </h1>
+              <p className="mt-0.5 truncate text-xs text-stone-500">
+                {[customer.city, `Client since ${shortDate(customer.createdAt)}`].filter(Boolean).join(" · ")}
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {customer.customerType && <StatusBadge status={customer.customerType} />}
+                {customer.status && customer.status !== "Active" && <StatusBadge status={customer.status} />}
+                <span className="inline-flex items-center gap-1 rounded-md border border-[#800020]/20 bg-[#800020]/8 px-2 py-0.5 text-xs text-[#800020]">
+                  <Sparkles className="h-3 w-3" />
+                  <span className="font-semibold">
+                    <AnimatedNumber value={customer.loyaltyPoints ?? 0} /> pts
+                  </span>
+                </span>
+              </div>
+            </div>
+            <DropdownMenu modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="More actions"
+                  className="grid size-9 shrink-0 place-items-center rounded-lg text-stone-500 hover:bg-[#F7EFF1] hover:text-[#2F151B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C79A45]"
+                >
+                  <MoreVertical className="h-5 w-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[200px]">
+                <DropdownMenuItem onSelect={() => setEditOpen(true)} className="min-h-10 gap-2">
+                  <Pencil className="h-4 w-4" /> Edit details
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setMeasureOpen(true)} className="min-h-10 gap-2">
+                  <Ruler className="h-4 w-4" /> New measurement session
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => go("style-assist", { id: selectedId })} className="min-h-10 gap-2">
+                  <Sparkles className="h-4 w-4" /> Open Style Assist
+                </DropdownMenuItem>
+                {owner && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={() => setDeleteOpen(true)}
+                      className="min-h-10 gap-2 text-red-700 focus:bg-red-50 focus:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete customer
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Quick actions: one tap to call, message or start an order */}
+          <div className="mt-4 flex items-center gap-2">
+            {customer.phone && (
+              <a href={`tel:${customer.phone.replace(/[^\d+]/g, "")}`} aria-label={`Call ${firstName}`} title="Call" className={quickAction}>
+                <Phone className="h-4 w-4" />
+              </a>
             )}
-            <PremiumButton
-              variant="primary"
-              size="md"
-              onClick={() => go("style-assist", { id: selectedId })}
-            >
-              <Sparkles className="w-4 h-4" /> Open Style Assist
-            </PremiumButton>
+            {customer.whatsapp && (
+              <a href={whatsappHref(customer.whatsapp)} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${firstName}`} title="WhatsApp" className={quickAction}>
+                <MessageSquare className="h-4 w-4" />
+              </a>
+            )}
+            {customer.email && (
+              <a href={`mailto:${customer.email}`} aria-label={`Email ${firstName}`} title="Email" className={quickAction}>
+                <Mail className="h-4 w-4" />
+              </a>
+            )}
+            <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
+              <PremiumButton variant="outline" size="md" onClick={() => setEditOpen(true)} className="hidden md:inline-flex">
+                <Pencil className="h-4 w-4" /> Edit
+              </PremiumButton>
+              {canCreate ? (
+                <>
+                  <PremiumButton variant="outline" size="md" onClick={() => go("style-assist", { id: selectedId })} className="hidden md:inline-flex">
+                    <Sparkles className="h-4 w-4" /> Style Assist
+                  </PremiumButton>
+                  <PremiumButton variant="primary" size="md" onClick={newOrder} className="w-full sm:w-auto">
+                    <Plus className="h-4 w-4" /> New order
+                  </PremiumButton>
+                </>
+              ) : (
+                <PremiumButton variant="primary" size="md" onClick={() => go("style-assist", { id: selectedId })} className="w-full sm:w-auto">
+                  <Sparkles className="h-4 w-4" /> Style Assist
+                </PremiumButton>
+              )}
+            </div>
           </div>
         </div>
+
+        <dl className={cn("grid divide-x divide-[#EEDFE3] border-t border-[#EEDFE3] bg-[#FDF9FA]", canSeeMoney ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-3")}>
+          {stats.map((st) => (
+            <div key={st.label} className={cn("min-w-0 px-3 py-2.5 sm:px-5", st.hideOnPhone && "hidden sm:block")}>
+              <dd className="truncate text-sm font-semibold tabular-nums text-[#2F151B] sm:text-base">{st.value}</dd>
+              <dt className="text-[10px] uppercase tracking-[0.14em] text-stone-400">{st.label}</dt>
+            </div>
+          ))}
+        </dl>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="bg-white border border-[#EEDFE3] rounded-lg h-auto p-1 overflow-x-auto scroll-slim max-w-full inline-flex w-auto gap-0.5">
+      {/* Sections */}
+      <Tabs value={tab} onValueChange={setTab} className="w-full">
+        <TabsList className="flex h-auto w-full max-w-full justify-start gap-0.5 overflow-x-auto rounded-lg border border-[#EEDFE3] bg-white p-1 scroll-slim sm:inline-flex sm:w-auto">
           {[
-            { v: "overview", l: "Overview" },
-            { v: "measurements", l: "Measurements" },
-            { v: "orders", l: "Orders" },
-            { v: "style", l: "Style" },
-            { v: "notes", l: "Notes" },
+            { v: "overview", l: "Overview", n: null },
+            { v: "orders", l: "Orders", n: orders.length },
+            { v: "measurements", l: "Measurements", n: measurements.length },
+            { v: "style", l: "Style", n: styleConcepts.length },
+            { v: "notes", l: "Notes", n: null },
           ].map((t) => (
             <TabsTrigger
               key={t.v}
               value={t.v}
-              className="rounded-md data-[state=active]:bg-[#800020] data-[state=active]:text-white data-[state=active]:shadow-sm px-4 py-1.5 text-sm font-medium text-stone-600"
+              className="min-h-10 shrink-0 flex-auto whitespace-nowrap rounded-md px-3.5 py-2 text-sm font-medium text-stone-600 data-[state=active]:bg-[#800020] data-[state=active]:text-white data-[state=active]:shadow-sm sm:px-4 sm:py-1.5"
             >
               {t.l}
+              {t.n ? <span className="ml-1.5 text-xs tabular-nums opacity-70">{t.n}</span> : null}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        {/* Overview */}
-        <TabsContent value="overview" className="mt-4">
-          <div className="grid lg:grid-cols-2 gap-4">
-            <SectionCard title="Profile">
-              <dl className="grid grid-cols-2 gap-x-4 gap-y-4">
-                <Fact
-                  label="Customer Since"
-                  value={formatDate(customer.createdAt)}
-                />
-                <Fact label="Occupation" value={customer.occupation} />
-                <Fact label="Gender" value={customer.gender} />
-                <Fact
-                  label="Height / Weight"
-                  value={
-                    customer.height || customer.weight
-                      ? `${customer.height ?? "—"} cm / ${customer.weight ?? "—"} kg`
-                      : null
-                  }
-                />
-                <Fact label="Preferred Fit" value={customer.preferredFit} />
-                <Fact label="Skin Tone" value={customer.skinTone} />
-              </dl>
+        {/* Overview: everything you need on one screen */}
+        <TabsContent value="overview" className="mt-3">
+          <div className="grid items-start gap-3 lg:grid-cols-2">
+            <SectionCard
+              title="Latest order"
+              bodyClassName="p-0"
+              className="lg:col-start-1"
+              action={
+                orders.length > 1 ? (
+                  <button type="button" onClick={() => setTab("orders")} className="inline-flex items-center gap-0.5 text-xs font-medium text-[#650019] hover:underline">
+                    All {orders.length} <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                ) : undefined
+              }
+            >
+              {latestOrder ? (
+                <OrderRow o={latestOrder} showPrice={canSeeMoney} onOpen={openOrder} />
+              ) : (
+                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
+                  <p className="text-sm text-stone-500">No orders yet for {firstName}.</p>
+                  {canCreate && (
+                    <PremiumButton variant="primary" size="sm" onClick={newOrder}>
+                      <Plus className="h-3.5 w-3.5" /> New order
+                    </PremiumButton>
+                  )}
+                </div>
+              )}
             </SectionCard>
-            <SectionCard title="Style Snapshot">
-              <div className="space-y-4">
-                <ChipList
-                  label="Favourite Colours"
-                  value={customer.favouriteColours}
-                />
-                <ChipList
-                  label="Colours to Avoid"
-                  value={customer.coloursToAvoid}
-                />
-                <ChipList
-                  label="Favourite Fabrics"
-                  value={customer.favouriteFabrics}
-                />
-                <ChipList
-                  label="Preferred Styles"
-                  value={customer.preferredStyles}
-                />
-              </div>
+
+            <SectionCard
+              title="About"
+              className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
+              action={
+                <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 text-xs font-medium text-[#650019] hover:underline">
+                  <Pencil className="h-3 w-3" /> Edit
+                </button>
+              }
+            >
+              {details.length === 0 && styleGroups.length === 0 ? (
+                <p className="text-sm text-stone-500">
+                  Nothing recorded yet. Add contact details and style preferences with Edit.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {details.length > 0 && (
+                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      {details.map((d) => (
+                        <div key={d.label} className={cn("min-w-0", d.wide && "col-span-2")}>
+                          <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-400">{d.label}</dt>
+                          <dd className="mt-0.5 break-words text-sm text-[#2F151B]">
+                            {d.href ? (
+                              <a href={d.href} target={d.href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="hover:text-[#800020] hover:underline">
+                                {d.value}
+                              </a>
+                            ) : (
+                              d.value
+                            )}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
+                  {styleGroups.length > 0 && (
+                    <div className={cn("space-y-3", details.length > 0 && "border-t border-[#F0E4E7] pt-4")}>
+                      {styleGroups.map((g) => (
+                        <ChipList key={g.label} label={g.label} value={g.value} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard title="Recent feedback" className="lg:col-start-1">
+              {feedback.length > 0 ? (
+                <ul className="space-y-3">
+                  {feedback.slice(0, 3).map((f) => (
+                    <li key={f.id} className="border-l-2 border-[#EEDFE3] pl-3">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <Stars value={f.rating} />
+                        <span className="text-[10px] uppercase tracking-[0.15em] text-stone-400">{f.type}</span>
+                        <span className="ml-auto text-xs text-stone-400">{shortDate(f.date)}</span>
+                      </div>
+                      {f.feedback && <p className="mt-1 line-clamp-2 break-words text-sm text-stone-600">{f.feedback}</p>}
+                    </li>
+                  ))}
+                  {feedback.length > 3 && <li className="text-xs text-stone-400">+ {feedback.length - 3} older</li>}
+                </ul>
+              ) : (
+                <p className="text-sm text-stone-500">No feedback recorded yet.</p>
+              )}
             </SectionCard>
           </div>
-
-          {feedback.length > 0 ? (
-            <SectionCard title="Recent Feedback" className="mt-4">
-              <ul className="space-y-3">
-                {feedback.slice(0, 5).map((f) => (
-                  <li
-                    key={f.id}
-                    className="border-l-2 border-[#EEDFE3] pl-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Stars value={f.rating} />
-                      <span className="text-[11px] uppercase tracking-[0.15em] text-stone-400">
-                        {f.type}
-                      </span>
-                      <span className="text-xs text-stone-400 ml-auto">
-                        {formatDate(f.date)}
-                      </span>
-                    </div>
-                    {f.feedback && (
-                      <p className="text-sm text-stone-600 mt-1.5">
-                        {f.feedback}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </SectionCard>
-          ) : (
-            <SectionCard title="Recent Feedback" className="mt-4">
-              <EmptyState
-                title="No feedback recorded"
-                description="Customer testimonials will appear here once captured."
-              />
-            </SectionCard>
-          )}
-        </TabsContent>
-
-        {/* Measurements — fixed layout, same for every customer */}
-        <TabsContent value="measurements" className="mt-4">
-          <MeasurementsPanel
-            measurements={measurements}
-            onUpdate={() => setMeasureOpen(true)}
-            customerGender={customer.gender}
-          />
         </TabsContent>
 
         {/* Orders */}
-        <TabsContent value="orders" className="mt-4">
+        <TabsContent value="orders" className="mt-3">
           <SectionCard
             title={`Orders · ${orders.length}`}
             bodyClassName="p-0"
             action={
-              <PremiumButton
-                variant="primary"
-                size="sm"
-                onClick={() =>
-                  go("new-order", { params: { customerId: selectedId } })
-                }
-              >
-                <Plus className="w-3.5 h-3.5" /> New Order
-              </PremiumButton>
+              canCreate ? (
+                <PremiumButton variant="primary" size="sm" onClick={newOrder}>
+                  <Plus className="h-3.5 w-3.5" /> New order
+                </PremiumButton>
+              ) : undefined
             }
           >
             {orders.length === 0 ? (
@@ -465,62 +537,34 @@ export default function CustomerProfile() {
                 title="No orders yet"
                 description={`Start a new order for ${firstName}.`}
                 action={
-                  <PremiumButton
-                    variant="primary"
-                    size="sm"
-                    onClick={() =>
-                      go("new-order", { params: { customerId: selectedId } })
-                    }
-                  >
-                    <Plus className="w-3.5 h-3.5" /> New Order for {firstName}
-                  </PremiumButton>
+                  canCreate ? (
+                    <PremiumButton variant="primary" size="sm" onClick={newOrder}>
+                      <Plus className="h-3.5 w-3.5" /> New order for {firstName}
+                    </PremiumButton>
+                  ) : undefined
                 }
               />
             ) : (
               <div className="divide-y divide-[#EEDFE3]/70">
-                {orders.map((o) => (
-                  <button
-                    key={o.id}
-                    onClick={() => go("order", { id: o.id })}
-                    className="group w-full flex flex-wrap items-center gap-3 px-5 py-4 text-left hover:bg-[#FCF8F9] transition-all focus:outline-none focus-visible:bg-[#FCF8F9]"
-                  >
-                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-[#FAF0F2] border border-[#EEDFE3] flex items-center justify-center text-[#800020] shrink-0">
-                      {o.designImage ? (
-                         
-                        <img src={o.designImage} alt={`${o.garmentDesign} style`} loading="lazy" className="w-full h-full object-cover" />
-                      ) : (
-                        <ShoppingBag className="w-4 h-4" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-[#2F151B] truncate">
-                        {o.garmentDesign}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-stone-500 mt-0.5">
-                        <span>Ordered {shortDate(o.orderDate)}</span>
-                        {o.assignedStaff && (
-                          <span>· {o.assignedStaff.fullName}</span>
-                        )}
-                        {o.deliveryDate && (
-                          <span>· Due {shortDate(o.deliveryDate)}</span>
-                        )}
-                      </div>
-                    </div>
-                    <StatusBadge status={o.status} />
-                    <div className="text-right min-w-[90px]">
-                      <div className="text-sm font-semibold text-[#2F151B] tabular-nums">
-                        {formatCurrency(o.sellingPrice)}
-                      </div>
-                    </div>
-                  </button>
+                {sortedOrders.map((o) => (
+                  <OrderRow key={o.id} o={o} showPrice={canSeeMoney} onOpen={openOrder} />
                 ))}
               </div>
             )}
           </SectionCard>
         </TabsContent>
 
+        {/* Measurements: fixed layout, same for every customer */}
+        <TabsContent value="measurements" className="mt-3">
+          <MeasurementsPanel
+            measurements={measurements}
+            onUpdate={() => setMeasureOpen(true)}
+            customerGender={customer.gender}
+          />
+        </TabsContent>
+
         {/* Style */}
-        <TabsContent value="style" className="mt-4">
+        <TabsContent value="style" className="mt-3">
           <SectionCard
             title="Saved Concepts"
             action={
@@ -529,7 +573,7 @@ export default function CustomerProfile() {
                 size="sm"
                 onClick={() => go("style-assist", { id: selectedId })}
               >
-                <Sparkles className="w-3.5 h-3.5" /> Generate Concepts
+                <Sparkles className="w-3.5 h-3.5" /> <span className="hidden sm:inline">Generate&nbsp;</span>Concepts
               </PremiumButton>
             }
           >
@@ -550,7 +594,7 @@ export default function CustomerProfile() {
               />
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
-                {styleConcepts.map((c) => (
+                {visibleConcepts.map((c) => (
                   <div
                     key={c.id}
                     className={cn(
@@ -616,25 +660,21 @@ export default function CustomerProfile() {
                 ))}
               </div>
             )}
+            {styleConcepts.length > 4 && (
+              <button
+                type="button"
+                onClick={() => setShowAllConcepts((v) => !v)}
+                className="mt-4 w-full rounded-lg border border-[#E6D4D8] py-2.5 text-sm font-medium text-[#650019] hover:bg-[#FBF1F3]"
+              >
+                {showAllConcepts ? "Show fewer" : `Show all ${styleConcepts.length} concepts`}
+              </button>
+            )}
           </SectionCard>
         </TabsContent>
 
-        {/* Notes */}
-        <TabsContent value="notes" className="mt-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <NotesCard
-              title="General Notes"
-              field="notes"
-              value={customer.notes}
-              customerId={customer.id}
-            />
-            <NotesCard
-              title="Style Notes"
-              field="styleNotes"
-              value={customer.styleNotes}
-              customerId={customer.id}
-            />
-          </div>
+        {/* Notes: one editor with a switch, instead of two stacked cards */}
+        <TabsContent value="notes" className="mt-3">
+          <NotesPanel customer={customer} />
         </TabsContent>
       </Tabs>
 
@@ -677,6 +717,77 @@ export default function CustomerProfile() {
   );
 }
 
+/** Orders that are done and no longer need attention. */
+const FINISHED = new Set<string>(["Collected/Delivered", "Completed"]);
+
+/** One order as a compact, tappable card: image, name and price, then status and dates. */
+function OrderRow({ o, showPrice, onOpen }: { o: Order; showPrice: boolean; onOpen: (id: string) => void }) {
+  return (
+    <button
+      onClick={() => onOpen(o.id)}
+      className={cn(
+        "group grid w-full items-start gap-x-3 gap-y-1.5 px-4 py-3.5 text-left transition-all hover:bg-[#FCF8F9] focus:outline-none focus-visible:bg-[#FCF8F9] sm:px-5 sm:py-4",
+        showPrice ? "grid-cols-[48px_minmax(0,1fr)_auto]" : "grid-cols-[48px_minmax(0,1fr)]"
+      )}
+    >
+      <div className="col-start-1 row-span-2 row-start-1 flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#EEDFE3] bg-[#FAF0F2] text-[#800020]">
+        {o.designImage ? (
+          <img src={o.designImage} alt={`${o.garmentDesign} style`} loading="lazy" className="h-full w-full object-cover" />
+        ) : (
+          <ShoppingBag className="h-4 w-4" />
+        )}
+      </div>
+      <div className="col-start-2 row-start-1 min-w-0 self-center truncate font-medium text-[#2F151B]">{o.garmentDesign}</div>
+      {showPrice && (
+        <div className="col-start-3 row-start-1 self-center text-right text-sm font-semibold tabular-nums text-[#2F151B]">
+          {formatCurrency(o.sellingPrice)}
+        </div>
+      )}
+      <div className={cn("col-start-2 row-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500", showPrice && "col-span-2")}>
+        <StatusBadge status={o.status} />
+        <span>Ordered {shortDate(o.orderDate)}</span>
+        {o.deliveryDate && <span>Due {shortDate(o.deliveryDate)}</span>}
+        {o.assignedStaff && <span className="truncate">{o.assignedStaff.fullName}</span>}
+      </div>
+    </button>
+  );
+}
+
+/** General and style notes share one editor; the switch picks which one you are writing. */
+function NotesPanel({ customer }: { customer: Customer }) {
+  const [field, setField] = useState<"notes" | "styleNotes">("notes");
+  return (
+    <div>
+      <div role="tablist" aria-label="Notes" className="mb-3 inline-flex rounded-lg bg-[#F4ECEE] p-1">
+        {([
+          ["notes", "General"],
+          ["styleNotes", "Style"],
+        ] as const).map(([k, l]) => (
+          <button
+            key={k}
+            role="tab"
+            aria-selected={field === k}
+            onClick={() => setField(k)}
+            className={cn(
+              "min-h-9 rounded-md px-4 text-sm font-medium transition",
+              field === k ? "bg-white text-[#2F151B] shadow-sm" : "text-stone-500 hover:text-[#2F151B]"
+            )}
+          >
+            {l}
+          </button>
+        ))}
+      </div>
+      <NotesCard
+        key={field}
+        title={field === "notes" ? "General notes" : "Style notes"}
+        field={field}
+        value={field === "notes" ? customer.notes : customer.styleNotes}
+        customerId={customer.id}
+      />
+    </div>
+  );
+}
+
 /* ---------- Small presentation helpers ---------- */
 
 function Stars({ value }: { value: number }) {
@@ -697,23 +808,6 @@ function Stars({ value }: { value: number }) {
         />
       ))}
     </span>
-  );
-}
-
-function Fact({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | null | undefined;
-}) {
-  return (
-    <div>
-      <dt className="text-[11px] uppercase tracking-[0.18em] text-stone-400">
-        {label}
-      </dt>
-      <dd className="text-sm text-[#2F151B] mt-1">{value || "—"}</dd>
-    </div>
   );
 }
 
@@ -744,7 +838,7 @@ function ChipList({
           {items.map((item, i) => (
             <span
               key={`${item}-${i}`}
-              className="inline-flex items-center rounded-md bg-[#FAF0F2] border border-[#EEDFE3] px-2 py-0.5 text-xs text-stone-700"
+              className="inline-flex max-w-full items-center break-words rounded-md bg-[#FAF0F2] border border-[#EEDFE3] px-2 py-1 text-xs text-stone-700"
             >
               {item}
             </span>
@@ -931,7 +1025,7 @@ function EditPersonalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto rounded-lg">
+      <DialogContent className="sm:max-w-[560px] max-h-[92dvh] overflow-y-auto rounded-lg">
         <DialogHeader>
           <DialogTitle className="font-display text-xl text-[#2F151B]">
             Edit Customer
@@ -1087,7 +1181,7 @@ function EditPersonalDialog({
               className="rounded-md"
             />
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className="gap-2 [&>button]:w-full sm:[&>button]:w-auto">
             <PremiumButton
               type="button"
               variant="outline"
@@ -1218,14 +1312,14 @@ function AddMeasurementDialog({
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-h-[92dvh] gap-0 overflow-y-auto rounded-lg p-0 sm:max-w-[720px]">
-        <DialogHeader className="border-b border-[#EEDFE3] px-6 py-4 text-left">
+        <DialogHeader className="border-b border-[#EEDFE3] px-4 py-4 text-left sm:px-6">
           <DialogTitle className="font-display text-xl text-[#2F151B]">New measurement session</DialogTitle>
           <DialogDescription className="text-stone-500">
             ISO 8559-1 body dimensions. Saved in centimetres; enter in whichever unit you are reading off the tape.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EEDFE3] bg-[#FAF0F2] px-6 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#EEDFE3] bg-[#FAF0F2] px-4 py-3 sm:px-6">
             <div role="group" aria-label="Entry unit" className="inline-flex rounded-md border border-[#EEDFE3] bg-white p-0.5 text-xs">
               {(["cm", "in"] as const).map((u) => (
                 <button
@@ -1252,7 +1346,7 @@ function AddMeasurementDialog({
             </div>
           </div>
 
-          <div className="space-y-6 px-6 py-5">
+          <div className="space-y-6 px-4 py-5 sm:px-6">
             {FIELD_GROUPS.map((group) => (
               <fieldset key={group}>
                 <legend className="mb-2 w-full border-b border-[#2F151B] pb-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#2F151B]">
@@ -1326,7 +1420,7 @@ function AddMeasurementDialog({
             </div>
           </div>
 
-          <DialogFooter className="sticky bottom-0 gap-2 border-t border-[#EEDFE3] bg-white px-6 py-3">
+          <DialogFooter className="sticky bottom-0 gap-2 border-t border-[#EEDFE3] bg-white px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-6 [&>button]:w-full sm:[&>button]:w-auto">
             <PremiumButton type="button" variant="outline" size="md" onClick={() => handleOpenChange(false)} disabled={saving}>
               Cancel
             </PremiumButton>
