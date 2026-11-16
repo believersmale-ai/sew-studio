@@ -221,12 +221,14 @@ export default function Customers() {
               onClick={() => setAddOpen(true)}
             >
               <UserPlus className="w-4 h-4" />
-
-      <AddCustomerDialog open={addOpen} onOpenChange={setAddOpen} onCreated={handleCreated} /> Add Customer
+              Add Customer
             </PremiumButton>
           ) : undefined
         }
       />
+
+      {/* The form lives on the page (desktop) or in a pop-up (phone/tablet). It must never sit inside the button. */}
+      <AddCustomerDialog open={addOpen} onOpenChange={setAddOpen} onCreated={handleCreated} />
 
       {/* Premium stat strip */}
       {!isLoading && enriched.length > 0 && (

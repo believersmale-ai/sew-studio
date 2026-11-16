@@ -177,16 +177,17 @@ export default function Orders() {
           canCreate ? (
             <PremiumButton onClick={() => (formMode === "popup" ? setNewOpen(true) : go("new-order"))}>
               <Plus className="w-4 h-4" />
+              New Order
+            </PremiumButton>
+          ) : undefined
+        }
+      />
 
       {formMode === "popup" && (
         <ResponsiveForm open={newOpen} onOpenChange={setNewOpen} title="New Custom Order" description="Book the commission, agree the price and deposit." maxWidth="sm:max-w-[680px]">
           <NewOrder embedded onClose={() => setNewOpen(false)} onCreated={(id) => { setNewOpen(false); go("order", { id }); }} />
         </ResponsiveForm>
-      )} New Order
-            </PremiumButton>
-          ) : undefined
-        }
-      />
+      )}
 
       {/* Premium stat strip */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
