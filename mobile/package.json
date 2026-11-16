@@ -1,0 +1,11 @@
+{
+  "name": "sewsiness-android",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Android (APK) wrapper for the Sewsiness web app, built by GitHub Actions.",
+  "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0"
+  }
+}

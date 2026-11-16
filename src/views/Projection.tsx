@@ -15,6 +15,8 @@ import {
   ACTIVE_STATUSES, formatCurrency, monthlyOverheadTotal, orderTrueCost,
 } from "@/lib/format";
 import type { Order, Settings } from "@/lib/types";
+import { useNav } from "@/stores/nav";
+import { PremiumButton } from "@/components/atelier/PremiumButton";
 import { PageHeader } from "@/components/atelier/PageHeader";
 import { SectionCard } from "@/components/atelier/SectionCard";
 import { MetricCard } from "@/components/atelier/MetricCard";
@@ -159,7 +161,7 @@ export default function Projection() {
                   })}</tbody>
                 </table>
               </div>
-            ) : <EmptyState icon={Banknote} title="No active orders yet" description="Once orders are confirmed, their projected revenue, costs and balances will appear here."/>}
+            ) : <EmptyState icon={Banknote} title="No active orders yet" description="Once orders are confirmed, their projected revenue, costs and balances will appear here." action={<PremiumButton size="sm" onClick={() => useNav.getState().go("new-order")}>Add an order</PremiumButton>} />}
           </SectionCard>
           <p className="mt-4 text-xs leading-5 text-stone-500">This is a planning estimate, not a cash balance or guaranteed profit. It includes active orders only; actual results depend on final costs, delivery, collections and any new work.</p>
         </>

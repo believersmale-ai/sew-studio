@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useMenuSettings } from "@/stores/menu-settings";
+import type { MenuKey } from "@/lib/menu-config";
 import {
   AreaChart,
   Area,
@@ -195,6 +197,7 @@ function MainDashboard() {
   // (madam) sees the full atelier overview with money + business health.
   const staff = isStaff() || isTrainer();
   const owner = isOwner();
+  const enabledMenus = useMenuSettings((s) => s.enabled);
   const trainer = isTrainer();
 
   const [insights, setInsights] = useState<string[] | null>(null);
@@ -603,13 +606,29 @@ function MainDashboard() {
               Your atelier, one place
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {[
-              { label: "New order", detail: "Start a client order", icon: ShoppingBag, action: () => go(m.customers.length > 0 ? "new-order" : "customers"), primary: true },
-              { label: "Add client", detail: "Grow your client book", icon: UserCheck, action: () => go("customers") },
-              { label: "Book fitting", detail: "Plan an appointment", icon: CalendarDays, action: () => go("fittings") },
-              { label: "Payments", detail: "Review money received", icon: Wallet, action: () => go("payments") },
-            ].map(({ label, detail, icon: Icon, action, primary }) => (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {(() => {
+              // The highlighted action is the next sensible step for this studio.
+              const noCustomers = m.customers.length === 0;
+              const noOrders = m.orders.length === 0;
+              const bookFitting = () => {
+                if (noOrders) {
+                  toast("Fittings are booked from an order. Create an order first.");
+                  go(noCustomers ? "customers" : "new-order", noCustomers ? { params: { add: "1" } } : undefined);
+                } else {
+                  go("order", { id: m.orders[0].id });
+                }
+              };
+              const items: { key: string; label: string; detail: string; icon: typeof ShoppingBag; action: () => void; primary?: boolean }[] = [
+                { key: "orders", label: "New order", detail: noCustomers ? "Add a client first" : "Start a client order", icon: ShoppingBag, action: () => (noCustomers ? go("customers", { params: { add: "1" } }) : go("new-order")), primary: !noCustomers },
+                { key: "customers", label: "Add client", detail: "Save name and phone", icon: UserCheck, action: () => go("customers", { params: { add: "1" } }), primary: noCustomers },
+                { key: "fittings", label: "Book fitting", detail: noOrders ? "After your first order" : "From an order", icon: CalendarDays, action: bookFitting },
+                { key: "payments", label: "Payments", detail: "Review money received", icon: Wallet, action: () => go("payments") },
+                { key: "quote", label: "Price a job", detail: "Quick quote from your costs", icon: Coins, action: () => go("quote") },
+                { key: "accra-runs", label: "Plan a market trip", detail: "Fabric and trims list", icon: Timer, action: () => go("accra-runs") },
+              ];
+              return items.filter((i) => enabledMenus?.[i.key as MenuKey] !== false);
+            })().map(({ label, detail, icon: Icon, action, primary }) => (
               <button
                 key={label}
                 type="button"
@@ -701,6 +720,14 @@ function MainDashboard() {
                   icon={ClipboardList}
                   title="No active orders right now"
                   description="When you create an order for a customer, its progress will appear here."
+                  action={
+                    owner || canCreateOrders() ? (
+                      <PremiumButton variant="primary" size="sm" onClick={() => (m.customers.length > 0 ? go("new-order") : go("customers", { params: { add: "1" } }))}>
+                        <Plus className="w-4 h-4" />
+                        {m.customers.length > 0 ? "Add an order" : "Add your first customer"}
+                      </PremiumButton>
+                    ) : undefined
+                  }
                 />
               ) : (
                 <div
@@ -770,7 +797,14 @@ function MainDashboard() {
               <EmptyState
                 icon={CalendarDays}
                 title="No fittings scheduled"
-                description="Add one from an order's detail page."
+                description="Fittings are booked from an order. Open an order and add one."
+                action={
+                  m.orders.length > 0 ? (
+                    <PremiumButton variant="outline" size="sm" onClick={() => go("order", { id: m.orders[0].id })}>
+                      Open an order
+                    </PremiumButton>
+                  ) : undefined
+                }
               />
             ) : (
               <div className="divide-y divide-[#EEDFE3]">
@@ -838,7 +872,12 @@ function MainDashboard() {
             <EmptyState
               icon={UserCheck}
               title="No team members yet"
-              description="Add staff in Settings to see workload here."
+              description="Add a team member to see their workload here."
+              action={
+                <PremiumButton variant="outline" size="sm" onClick={() => go("team")}>
+                  <Plus className="w-4 h-4" /> Add a team member
+                </PremiumButton>
+              }
             />
           ) : (
             <div className="divide-y divide-[#EEDFE3]">

@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sewsiness</title>
+  <style>
+    body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;box-sizing:border-box;background:#FCF8F5;color:#2F151B;font-family:system-ui,sans-serif;text-align:center}
+    h1{font-size:1.4rem;color:#800020;margin:0 0 .5rem} p{margin:0 0 1.25rem;color:#5f4b50;line-height:1.5}
+    button{background:#800020;color:#fff;border:0;border-radius:999px;padding:.85rem 1.6rem;font-size:1rem;font-weight:600}
+  </style>
+</head>
+<body>
+  <main>
+    <h1>You are offline</h1>
+    <p>Sewsiness needs an internet connection. Check your data or Wi-Fi, then try again.</p>
+    <button type="button" onclick="history.length > 1 ? history.back() : location.reload()">Try again</button>
+  </main>
+</body>
+</html>

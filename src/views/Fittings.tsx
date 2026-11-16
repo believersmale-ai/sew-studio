@@ -29,6 +29,7 @@ import { apiDelete, apiGet } from "@/lib/api";
 import { formatDate, isOverdue } from "@/lib/format";
 import type { Customer, Fitting } from "@/lib/types";
 import { useNav } from "@/stores/nav";
+import { PremiumButton } from "@/components/atelier/PremiumButton";
 import { useRole } from "@/stores/role";
 import { ConfirmDeleteDialog } from "@/components/atelier/ConfirmDeleteDialog";
 import { cn } from "@/lib/utils";
@@ -207,7 +208,14 @@ export default function Fittings() {
               <EmptyState
                 icon={CalendarDays}
                 title="No upcoming fittings"
-                description="When you schedule a fitting for an order, it will appear here."
+                description="Fittings are booked from an order. Open an order and add one, and it will appear here."
+                action={
+                  owner ? (
+                    <PremiumButton variant="outline" size="sm" onClick={() => go("orders")}>
+                      Choose an order
+                    </PremiumButton>
+                  ) : undefined
+                }
               />
             ) : (
               <ul className="divide-y divide-[#EEDFE3]/70">

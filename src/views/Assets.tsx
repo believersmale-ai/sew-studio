@@ -49,7 +49,7 @@ export default function Assets() {
       {canEdit && (
         <SectionCard title="Add an item" className="mb-5">
           <form className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3" onSubmit={(e) => { e.preventDefault(); if (form.name.trim()) add.mutate(); }}>
-            <label className="text-xs font-medium text-stone-600 lg:col-span-2">Name<input className={`${field} mt-1`} value={form.name} maxLength={120} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Juki industrial machine" /></label>
+            <label className="text-xs font-medium text-stone-600 lg:col-span-2">Name<input id="asset-name" className={`${field} mt-1`} value={form.name} maxLength={120} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Juki industrial machine" /></label>
             <label className="text-xs font-medium text-stone-600">Category<select className={`${field} mt-1`} value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select></label>
             <label className="text-xs font-medium text-stone-600">Condition<select className={`${field} mt-1`} value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })}>{CONDITIONS.map((c) => <option key={c}>{c}</option>)}</select></label>
             <label className="text-xs font-medium text-stone-600">Cost ({currency})<input type="number" min={0} step="0.01" className={`${field} mt-1`} value={form.purchaseCost} onChange={(e) => setForm({ ...form, purchaseCost: e.target.value })} /></label>
@@ -61,7 +61,7 @@ export default function Assets() {
       )}
       <SectionCard title={`Your items${assets?.length ? ` · ${formatCurrency(value, currency)} at cost` : ""}`}>
         {isLoading ? <p className="p-6 text-sm text-stone-400">Loading…</p> : !assets?.length ? (
-          <EmptyState icon={Package} title="Nothing listed yet" description="Add your machines, mannequins and equipment to keep track of them." />
+          <EmptyState icon={Package} title="Nothing listed yet" description="Add your machines, mannequins and equipment to keep track of them." action={canEdit ? <PremiumButton size="sm" onClick={() => { const el = document.getElementById("asset-name") as HTMLInputElement | null; el?.scrollIntoView({ behavior: "smooth", block: "center" }); el?.focus(); }}><Plus className="size-4" /> Add your first item</PremiumButton> : undefined} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

@@ -42,7 +42,7 @@ export default function AccraRuns() {
         </div>
       )}
       {isLoading ? <p className="text-sm text-stone-400">Loading…</p> : !trips?.length ? (
-        <SectionCard><EmptyState icon={Truck} title="No trips yet" description="Plan your next trip to the market, then list what you need to buy." /></SectionCard>
+        <SectionCard><EmptyState icon={Truck} title="No trips yet" description="Plan your next trip to the market, then list what you need to buy." action={canEdit ? <PremiumButton size="sm" onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan your first trip</PremiumButton> : undefined} /></SectionCard>
       ) : (
         <div className="space-y-5">{trips.map((t) => <TripCard key={t.id} trip={t} currency={currency} canEdit={canEdit} onChange={refresh} onError={onError} />)}</div>
       )}
