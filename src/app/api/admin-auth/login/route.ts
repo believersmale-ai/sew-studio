@@ -63,11 +63,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data: admin } = await db
+    // Delegation columns (migration 041) may not exist yet on an older database.
+    // Fall back to the original columns so a missing migration can't lock every admin out.
+    let admin: { id: string; email: string; full_name: string; disabled_at?: string | null; is_super?: boolean; areas?: string[] | null } | null = null;
+    const full = await db
       .from("system_admins")
-      .select("id, email, full_name, disabled_at")
+      .select("id, email, full_name, disabled_at, is_super, areas")
       .eq("id", data.user.id)
       .maybeSingle();
+    if (full.error) {
+      const legacy = await db.from("system_admins").select("id, email, full_name").eq("id", data.user.id).maybeSingle();
+      admin = legacy.data ? { ...legacy.data, is_super: true, areas: [] } : null;
+    } else {
+      admin = full.data;
+    }
 
     if (admin?.disabled_at) {
       await db.auth.signOut();
@@ -84,7 +93,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      admin: { id: admin.id, email: admin.email, fullName: admin.full_name },
+      admin: { id: admin.id, email: admin.email, fullName: admin.full_name, isSuper: Boolean(admin.is_super), areas: admin.areas ?? [] },
     });
   } catch (error) {
     console.error("[admin-auth/login]", error);

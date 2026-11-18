@@ -1,10 +1,12 @@
-import { randomBytes } from "node:crypto";
+import { randomInt } from "node:crypto";
 import { hash } from "@node-rs/argon2";
 import { getPool } from "@/lib/db/pool";
 import { ADMIN_AREA_KEYS } from "@/lib/admin-access";
 
 /** A readable one-time password for a new or reset admin (shown once to the main admin). */
-export const generateTempPassword = () => randomBytes(9).toString("base64url");
+// No look-alike characters (0/O, 1/l/I) and no "-" or "_", so it survives being read out or retyped.
+const TEMP_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+export const generateTempPassword = () => Array.from({ length: 14 }, () => TEMP_ALPHABET[randomInt(TEMP_ALPHABET.length)]).join("");
 
 export const cleanAreas = (v: unknown): string[] =>
   Array.isArray(v) ? [...new Set(v.filter((a): a is string => typeof a === "string" && ADMIN_AREA_KEYS.includes(a)))] : [];
