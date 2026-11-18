@@ -138,12 +138,14 @@ export class AuthApi {
     );
     const row = rows[0];
     if (!row) {
+      console.error(`[auth] sign-in failed for ${email}: no user with a stored password (account or credentials row missing)`);
       await argonVerify(await getDummy(), password).catch(() => false);
       await recordFailure(failKeys);
       return fail();
     }
     const ok = await argonVerify(row.password_hash, password).catch(() => false);
     if (!ok) {
+      console.error(`[auth] sign-in failed for ${email}: password does not match the stored hash`);
       await recordFailure(failKeys);
       return fail();
     }
