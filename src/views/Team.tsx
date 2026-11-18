@@ -270,7 +270,7 @@ export default function Team() {
       </div>
 
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="bg-white border border-[#EEDFE3] rounded-lg h-auto p-1 overflow-x-auto max-w-full inline-flex w-auto gap-0.5">
+        <TabsList className="bg-white border border-[#EEDFE3] rounded-lg h-auto p-1 overflow-x-auto max-w-full flex w-full justify-start sm:inline-flex sm:w-auto gap-0.5">
           <TabsTrigger
             value="staff"
             className="rounded-md data-[state=active]:bg-[#800020] data-[state=active]:text-white data-[state=active]:shadow-sm px-4 py-1.5 text-sm font-medium text-stone-600 whitespace-nowrap"
@@ -372,7 +372,7 @@ export default function Team() {
             if (!open) setCreatedFreelancerCredentials(null);
           }}
         >
-        <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Freelancer login created</DialogTitle>
             <DialogDescription>
@@ -1227,7 +1227,7 @@ function AddMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add atelier member</DialogTitle>
           <DialogDescription>
@@ -1430,7 +1430,7 @@ function AddTraineeDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add trainee</DialogTitle>
           <DialogDescription>
@@ -1745,7 +1745,7 @@ function AssignJobDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Assign a job</DialogTitle>
           <DialogDescription>
@@ -1897,7 +1897,7 @@ function AddFreelancerDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add freelancer</DialogTitle>
           <DialogDescription>
@@ -2157,7 +2157,7 @@ function EditTraineeDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-lg max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit trainee profile</DialogTitle>
           <DialogDescription>
@@ -2449,7 +2449,7 @@ function EditMemberDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit member details</DialogTitle>
           <DialogDescription>
@@ -2566,7 +2566,7 @@ function EditFreelancerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Working terms</DialogTitle>
           <DialogDescription>

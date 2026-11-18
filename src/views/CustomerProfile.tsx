@@ -392,7 +392,7 @@ export default function CustomerProfile() {
           </div>
         </div>
 
-        <dl className={cn("grid divide-x divide-[#EEDFE3] border-t border-[#EEDFE3] bg-[#FDF9FA]", canSeeMoney ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-3")}>
+        <dl data-keep-cols className={cn("grid divide-x divide-[#EEDFE3] border-t border-[#EEDFE3] bg-[#FDF9FA]", canSeeMoney ? "grid-cols-3 sm:grid-cols-4" : "grid-cols-3")}>
           {stats.map((st) => (
             <div key={st.label} className={cn("min-w-0 px-3 py-2.5 sm:px-5", st.hideOnPhone && "hidden sm:block")}>
               <dd className="truncate text-sm font-semibold tabular-nums text-[#2F151B] sm:text-base">{st.value}</dd>

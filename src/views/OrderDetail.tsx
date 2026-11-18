@@ -750,7 +750,7 @@ export default function OrderDetail() {
                 onValueChange={(v) => statusMut.mutate(v)}
                 disabled={statusMut.isPending}
               >
-                <SelectTrigger className="w-[180px] rounded-md h-9 text-sm bg-white">
+                <SelectTrigger className="w-full sm:w-[180px] rounded-md h-9 text-sm bg-white">
                   <SelectValue placeholder="Change status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1565,7 +1565,7 @@ function EditOrderDialog({
         onOpenChange(v);
       }}
     >
-      <DialogContent className="w-[calc(100%-2rem)] max-w-md max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit order</DialogTitle>
         </DialogHeader>

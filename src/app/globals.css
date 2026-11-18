@@ -495,8 +495,10 @@ main [class*="rounded-full"][class*="text-"] { letter-spacing: .005em; }
   .studio-shell main h2 { font-size: 1.2rem; }
   /* Only a plain grid-cols-3/4 drops to two columns. [class~=] matches the whole
      class, so "xl:grid-cols-3" (one column on a phone) is no longer caught by mistake. */
-  .studio-shell main [class~="grid-cols-4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .studio-shell main [class~="grid-cols-3"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-shell main [class~="grid-cols-4"]:not([data-keep-cols]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-shell main [class~="grid-cols-3"]:not([data-keep-cols]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* An odd last item fills the row instead of sitting alone beside an empty cell. */
+  .studio-shell main [class~="grid-cols-3"]:not([data-keep-cols]) > :last-child:nth-child(odd) { grid-column: 1 / -1; }
   .studio-shell main [class*="gap-6"] { gap: 14px; }
   .studio-shell main [class*="gap-5"] { gap: 12px; }
   .studio-shell main [class*="mb-8"] { margin-bottom: 18px; }
@@ -516,7 +518,7 @@ main [class*="rounded-full"][class*="text-"] { letter-spacing: .005em; }
 /* Small tablets: use two-column workspaces with comfortable spacing. */
 @media (min-width: 640px) and (max-width: 1023px) {
   .studio-shell main > div[class*="max-w-"] { padding-left: 22px !important; padding-right: 22px !important; padding-top: 24px !important; }
-  .studio-shell main [class*="grid-cols-4"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-shell main [class*="grid-cols-4"]:not([data-keep-cols]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .studio-shell main table { min-width: 680px; }
 }
 
@@ -748,3 +750,17 @@ button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
   font-feature-settings: "lnum" 1;
 }
 body { font-variant-numeric: lining-nums; font-feature-settings: "lnum" 1; }
+
+/* Forms and dialogs on touch screens.
+   16px text stops iOS from zooming the page when a field is focused. The earlier rule
+   only covered the page body, but dialogs and sheets render outside it. Fields also get
+   a thumb-sized height, including the Radix select buttons. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  select,
+  textarea { font-size: 16px; }
+  [data-slot="input"],
+  [data-slot="select-trigger"],
+  [role="dialog"] select,
+  [role="dialog"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]) { min-height: 2.5rem; }
+}

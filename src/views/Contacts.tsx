@@ -162,7 +162,7 @@ function ContactDialog({ kind, initial, all, onClose, onSaved }: { kind: Kind; i
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+      <DialogContent className="max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isNew ? `Add ${noun}` : `Edit ${noun}`}</DialogTitle>
           <DialogDescription>{kind === "suppliers" ? "Where you buy materials from." : "Someone you call when equipment needs fixing."}</DialogDescription>

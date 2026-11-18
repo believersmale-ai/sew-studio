@@ -43,7 +43,7 @@ export function PremiumMetric({
   return (
     <div
       className={cn(
-        "@container relative overflow-hidden rounded-xl border p-4 shadow-xs sm:p-5",
+        "@container relative overflow-hidden rounded-xl border p-3 shadow-xs min-[400px]:p-4 sm:p-5",
         t ? t.card : "border-[#E6D4D8] bg-white",
         className
       )}
@@ -52,14 +52,14 @@ export function PremiumMetric({
         {Icon && (
           <span
             className={cn(
-              "grid size-9 shrink-0 place-items-center rounded-lg",
+              "grid size-9 shrink-0 place-items-center rounded-lg @max-[8.5rem]:hidden",
               t ? t.tile : accent ? "bg-[#FAEFF1] text-[#800020]" : "bg-[#F7EFF1] text-[#776267]"
             )}
           >
             <Icon className="size-[18px]" />
           </span>
         )}
-        <span className="text-[13px] font-medium leading-tight text-slate-600">{label}</span>
+        <span className="text-xs font-medium leading-tight text-slate-600 @[8.5rem]:text-[13px]">{label}</span>
       </div>
       <div className="relative mt-3 flex flex-wrap items-end gap-x-2 gap-y-1.5">
         <div

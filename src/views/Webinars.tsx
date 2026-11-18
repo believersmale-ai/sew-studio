@@ -184,7 +184,7 @@ export default function Webinars() {
       </SectionCard>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-xl overflow-y-auto">
           <DialogHeader><DialogTitle className="font-display text-2xl">{editing ? "Edit session" : "Schedule a session"}</DialogTitle></DialogHeader>
           <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); save.mutate(); }}>
             <div><Label htmlFor="w-title">Session title</Label><Input id="w-title" required maxLength={150} value={form.title} onChange={set("title")} placeholder="e.g. Advanced corset construction" /></div>

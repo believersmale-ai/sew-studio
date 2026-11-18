@@ -102,7 +102,7 @@ export function FreelancerMarketplace() {
             placeholder="What needs doing? e.g. Hand-bead the neckline of a kente gown"
             className="w-full px-3 py-2 rounded-md border border-[#EEDFE3] text-sm"
           />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
             <input className={input} type="number" min="0" placeholder="Budget (optional)" value={budget} onChange={(e) => setBudget(e.target.value)} />
             <input className={input} type="date" value={due} onChange={(e) => setDue(e.target.value)} />
           </div>

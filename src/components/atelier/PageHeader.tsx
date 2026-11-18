@@ -39,7 +39,7 @@ export function PageHeader({
           <p className="text-sm leading-relaxed text-slate-600 mt-1.5 max-w-2xl">{subtitle}</p>
         )}
       </div>
-      {actions && <div className="flex flex-wrap items-center justify-start md:justify-end gap-2 md:shrink-0 w-full md:w-auto">{actions}</div>}
+      {actions && <div className="flex flex-wrap items-center justify-start md:justify-end gap-2 md:shrink-0 w-full md:w-auto max-sm:[&>button]:flex-1 max-sm:[&>a]:flex-1">{actions}</div>}
     </div>
   );
 }

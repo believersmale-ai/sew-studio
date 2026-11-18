@@ -406,7 +406,7 @@ export default function Tasks() {
       />
 
       {/* Premium stat strip */}
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
+      <div data-keep-cols className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
         <PremiumMetric
           label="To Do"
           value={<AnimatedNumber value={stats.todo} />}
@@ -504,14 +504,14 @@ export default function Tasks() {
       {/* Filter bar (trainees have no staff filter — they only see their own) */}
       {showFilters && (
         <SectionCard bodyClassName="py-3" className="mb-5">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-4">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-[11px] uppercase tracking-[0.18em] text-stone-500">
                 {graderMode ? "Trainee" : "Staff"}
               </span>
               <Select value={staffFilter} onValueChange={setStaffFilter}>
                 <SelectTrigger
-                  className="w-[180px] h-8 bg-white"
+                  className="w-full sm:w-[180px] h-8 bg-white"
                   aria-label="Filter by staff"
                 >
                   <SelectValue />
@@ -530,7 +530,7 @@ export default function Tasks() {
               </Select>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
               <span className="text-[11px] uppercase tracking-[0.18em] text-stone-500">
                 Priority
               </span>
@@ -539,7 +539,7 @@ export default function Tasks() {
                 onValueChange={setPriorityFilter}
               >
                 <SelectTrigger
-                  className="w-[160px] h-8 bg-white"
+                  className="w-full sm:w-[160px] h-8 bg-white"
                   aria-label="Filter by priority"
                 >
                   <SelectValue />
@@ -764,15 +764,14 @@ function TaskCard({
             {task.title}
           </p>
         </button>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <StatusBadge status={task.priority} />
+        <div className="-mr-1.5 -mt-1.5 flex shrink-0 items-center sm:mr-0 sm:mt-0 sm:gap-1">
           {onEdit && (
             <button
               type="button"
               onClick={onEdit}
               aria-label="Edit task"
               title="Edit task"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-stone-400 hover:text-[#800020] hover:bg-[#800020]/5 transition"
+              className="size-10 sm:size-7 rounded-md flex items-center justify-center text-stone-400 hover:text-[#800020] hover:bg-[#800020]/5 transition"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
@@ -783,7 +782,7 @@ function TaskCard({
               onClick={onDelete}
               aria-label="Delete task"
               title="Delete task"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-stone-400 hover:text-red-600 hover:bg-red-50 transition"
+              className="size-10 sm:size-7 rounded-md flex items-center justify-center text-stone-400 hover:text-red-600 hover:bg-red-50 transition"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -805,8 +804,9 @@ function TaskCard({
         </button>
       )}
 
-      <div className="flex items-center justify-between gap-2 pt-0.5">
-        <div className="flex items-center gap-2 min-w-0">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5 pt-0.5">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <StatusBadge status={task.priority} />
           {showStaff && staffName ? (
             <span className="inline-flex items-center gap-1.5 min-w-0">
               <span className="w-5 h-5 rounded-full bg-[#800020]/10 text-[#800020] text-[11px] font-semibold flex items-center justify-center shrink-0">
@@ -908,7 +908,7 @@ function TaskCard({
         </span>
         {canChangeStatus ? (
           <Select value={task.status} onValueChange={onStatusChange}>
-            <SelectTrigger size="sm" className="h-7 w-[140px] text-xs bg-white">
+            <SelectTrigger size="sm" className="w-[150px] text-xs bg-white sm:w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -936,6 +936,13 @@ interface NewTaskPayload {
   orderId?: string;
   notes?: string;
   staffId?: string;
+}
+
+/** Today plus n days, as YYYY-MM-DD in local time. */
+function dateIn(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function NewTaskDialog({
@@ -1020,7 +1027,7 @@ function NewTaskDialog({
         if (!v) setTimeout(reset, 150);
       }}
     >
-      <DialogContent className="w-[calc(100%-2rem)] sm:max-w-md rounded-lg max-h-[90dvh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md rounded-lg max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-[#2F151B]">
             {editing ? "Edit Task" : "New Task"}
@@ -1040,37 +1047,81 @@ function NewTaskDialog({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Source buttons for Akosua gown"
-              autoFocus
+              autoFocus={typeof window !== "undefined" && window.matchMedia("(pointer: fine)").matches}
               required
             />
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="grid gap-1.5">
-              <Label htmlFor="task-priority">Priority</Label>
-              <Select value={priority} onValueChange={setPriority}>
-                <SelectTrigger id="task-priority" className="w-full bg-white">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRIORITY_LEVELS.map((p) => (
-                    <SelectItem key={p} value={p}>
-                      {p}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="grid gap-1.5">
+            <Label id="task-priority-label">Priority</Label>
+            <div
+              role="radiogroup"
+              aria-labelledby="task-priority-label"
+              className="grid gap-1 rounded-lg bg-[#F4ECEE] p-1"
+              style={{ gridTemplateColumns: `repeat(${PRIORITY_LEVELS.length}, minmax(0, 1fr))` }}
+            >
+              {PRIORITY_LEVELS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="radio"
+                  aria-checked={priority === p}
+                  onClick={() => setPriority(p)}
+                  className={cn(
+                    "min-h-10 rounded-md px-2 text-sm font-medium transition",
+                    priority === p
+                      ? "bg-white text-[#2F151B] shadow-sm"
+                      : "text-stone-500 hover:text-[#2F151B]"
+                  )}
+                >
+                  {p}
+                </button>
+              ))}
             </div>
+          </div>
 
-            <div className="grid gap-1.5">
-              <Label htmlFor="task-due">Due Date</Label>
-              <Input
-                id="task-due"
-                type="date"
-                value={dueDate}
-                min={editing ? undefined : todayISO()}
-                onChange={(e) => setDueDate(e.target.value)}
-              />
+          <div className="grid gap-1.5">
+            <Label htmlFor="task-due">Due Date</Label>
+            <Input
+              id="task-due"
+              type="date"
+              value={dueDate}
+              min={editing ? undefined : todayISO()}
+              onChange={(e) => setDueDate(e.target.value)}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { l: "Today", d: 0 },
+                { l: "Tomorrow", d: 1 },
+                { l: "In a week", d: 7 },
+              ].map((q) => {
+                const iso = dateIn(q.d);
+                return (
+                  <button
+                    key={q.l}
+                    type="button"
+                    onClick={() => setDueDate(iso)}
+                    aria-pressed={dueDate === iso}
+                    className={cn(
+                      "min-h-9 rounded-full border px-3 text-xs font-medium transition",
+                      dueDate === iso
+                        ? "border-[#800020] bg-[#800020] text-white"
+                        : "border-[#E6D4D8] text-stone-600 hover:bg-[#FBF1F3]"
+                    )}
+                  >
+                    {q.l}
+                  </button>
+                );
+              })}
+              {dueDate && (
+                <button
+                  type="button"
+                  onClick={() => setDueDate("")}
+                  className="min-h-9 px-2 text-xs text-stone-500 hover:text-[#800020]"
+                >
+                  Clear
+                </button>
+              )}
             </div>
           </div>
 

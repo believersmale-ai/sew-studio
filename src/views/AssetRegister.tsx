@@ -170,7 +170,7 @@ function AssetDialog({ id, staff, currency, canEdit, onClose, onChanged }: { id:
   const ro = !canEdit;
   return (
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+      <DialogContent className="max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isNew ? "Add Asset" : detail.data?.name || "Asset"}</DialogTitle>
           <DialogDescription>{isNew ? "Record a machine, tool or piece of equipment." : "Details, condition and maintenance history."}</DialogDescription>

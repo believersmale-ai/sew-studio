@@ -127,7 +127,7 @@ export default function MyJobs() {
       />
 
       {/* Premium stat strip */}
-      <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
+      <div data-keep-cols className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
         <PremiumMetric
           label="Active jobs"
           value={<AnimatedNumber value={stats.active} />}

@@ -129,7 +129,7 @@ export default function Portfolio() {
       <LearningTabs current="portfolio" />
 
       {/* Premium stat strip */}
-      <div className="grid grid-cols-3 gap-3 md:gap-4 mb-6 animate-fade-in-up">
+      <div data-keep-cols className="grid grid-cols-3 gap-3 md:gap-4 mb-6 animate-fade-in-up">
         <PremiumMetric
           label="Total Pieces"
           value={<AnimatedNumber value={stats.total} />}

@@ -814,7 +814,7 @@ function IssueDialog({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="cert-weeks" className="text-xs">
                 Duration (weeks)
@@ -1076,7 +1076,7 @@ function CertificateCard({ cert }: { cert: Certificate }) {
 
         {/* Bottom row */}
         <div className="mt-auto w-full pt-10 sm:pt-12">
-          <div className="grid grid-cols-3 items-end gap-4 sm:gap-6">
+          <div data-keep-cols className="grid grid-cols-3 items-end gap-4 sm:gap-6">
             {/* Issued by */}
             <div className="text-left">
               <div className="text-[11px] uppercase tracking-[0.22em] text-stone-500 mb-2">
