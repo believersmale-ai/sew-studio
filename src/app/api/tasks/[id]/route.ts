@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/db/errors";
 import { getTenant } from "@/lib/db/session";
 import type { Database } from "@/lib/db/database.types";
 import { serializeTask } from "@/lib/db/serializers";
@@ -135,7 +136,8 @@ export async function PATCH(
 
     return Response.json(serializeTask(task));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[tasks]", err);
+    const msg = errorMessage(err);
     return Response.json({ error: msg }, { status: 500 });
   }
 }
@@ -182,7 +184,8 @@ export async function DELETE(
 
     return Response.json({ ok: true });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[tasks]", err);
+    const msg = errorMessage(err);
     return Response.json({ error: msg }, { status: 500 });
   }
 }

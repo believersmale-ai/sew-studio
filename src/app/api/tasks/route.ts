@@ -1,3 +1,4 @@
+import { errorMessage } from "@/lib/db/errors";
 import type { Database } from "@/lib/db/database.types";
 import { getTenant } from "@/lib/db/session";
 import { serializeTask } from "@/lib/db/serializers";
@@ -38,7 +39,8 @@ export async function GET() {
 
     return Response.json(tasks.map(serializeTask));
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[tasks]", err);
+    const msg = errorMessage(err);
     return Response.json({ error: msg }, { status: 500 });
   }
 }
@@ -92,7 +94,8 @@ export async function POST(req: Request) {
 
     return Response.json(serializeTask(task), { status: 201 });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
+    console.error("[tasks]", err);
+    const msg = errorMessage(err);
     return Response.json({ error: msg }, { status: 500 });
   }
 }
