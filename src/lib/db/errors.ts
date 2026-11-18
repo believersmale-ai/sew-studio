@@ -12,14 +12,3 @@ export function dbErrorResponse(err: unknown, tag: string) {
   if (isMissingSchema(err)) return Response.json({ error: MIGRATE_HINT }, { status: 503 });
   return Response.json({ error: "Something went wrong. Please try again." }, { status: 500 });
 }
-
-/**
- * Readable message from anything thrown. Database errors (PostgREST / pg) are
- * plain objects with a `message`, not `Error` instances, so an
- * `err instanceof Error` check alone turns them into "Unknown error".
- */
-export function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  const m = (err as { message?: unknown } | null)?.message;
-  return typeof m === "string" && m ? m : "Unknown error";
-}

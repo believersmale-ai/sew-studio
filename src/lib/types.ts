@@ -94,6 +94,8 @@ export interface Order {
   orderDate: string;
   deliveryDate?: string | null;
   status: OrderStatus;
+  /** Detailed workshop stage (see production-stages.ts); null before work starts. */
+  productionStage?: string | null;
   assignedStaffId?: string | null;
   assignedStaff?: User | null;
   sellingPrice: number;

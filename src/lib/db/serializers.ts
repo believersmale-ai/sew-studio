@@ -90,6 +90,7 @@ export function serializeOrder(o: Record<string, any>) {
     orderDate: o.order_date,
     deliveryDate: o.delivery_date,
     status: o.status,
+    productionStage: o.production_stage ?? null,
     assignedStaffId: o.assigned_staff_id,
     assignedStaff: o.assigned_staff ? serializeUser(o.assigned_staff) : undefined,
     sellingPrice: o.selling_price,

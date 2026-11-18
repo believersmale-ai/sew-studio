@@ -37,21 +37,51 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  ALL_STAGES,
+  STAGE_GROUPS,
+  effectiveStage,
+  resolveMove,
+  stageProgress,
+  type OrderMove,
+  type StageGroupKey,
+} from "@/lib/production-stages";
 
 type ColumnDef = {
   key: string;
   title: string;
-  statuses: string[];
+  /** Plain-status columns: orders whose status is one of these. */
+  statuses?: string[];
+  /** Production columns: orders whose detailed stage belongs to this group. */
+  group?: StageGroupKey;
+  /** Status an order gets when dropped here (plain-status columns). */
+  dropStatus?: string;
 };
 
+const PRE_PRODUCTION = ["Enquiry", "Quoted", "Consultation", "Confirmed", "Deposit Paid"];
+const FINISHED = ["Collected/Delivered", "Completed"];
+
 const BOARD_COLUMNS: ColumnDef[] = [
-  { key: "consultation", title: "Consultation", statuses: ["Enquiry", "Quoted", "Consultation"] },
-  { key: "confirmed", title: "Confirmed", statuses: ["Confirmed", "Deposit Paid"] },
-  { key: "production", title: "In Production", statuses: ["In Production"] },
-  { key: "fitting", title: "Fitting & Alterations", statuses: ["Fitting", "Alterations"] },
-  { key: "ready", title: "Ready", statuses: ["Ready"] },
-  { key: "done", title: "Delivered & Done", statuses: ["Collected/Delivered", "Completed"] },
+  { key: "consultation", title: "Consultation", statuses: ["Enquiry", "Quoted", "Consultation"], dropStatus: "Enquiry" },
+  { key: "confirmed", title: "Confirmed", statuses: ["Confirmed", "Deposit Paid"], dropStatus: "Confirmed" },
+  ...STAGE_GROUPS.map((g) => ({ key: g.key, title: g.title, group: g.key })),
+  { key: "done", title: "Collected & Done", statuses: FINISHED, dropStatus: "Collected/Delivered" },
 ];
+
+/** Which column an order sits in. Orders in production are placed by their detailed stage. */
+function columnKeyFor(order: Pick<Order, "status" | "productionStage">): string | null {
+  if (FINISHED.includes(order.status)) return "done";
+  if (PRE_PRODUCTION.includes(order.status)) {
+    return BOARD_COLUMNS.find((c) => c.statuses?.includes(order.status))?.key ?? null;
+  }
+  const stage = effectiveStage(order);
+  return STAGE_GROUPS.find((g) => (g.stages as readonly string[]).includes(stage ?? ""))?.key ?? "garment";
+}
+
+/** What the "Move to" menu sends: "stage:<name>" or "status:<name>". */
+function moveFromValue(value: string): OrderMove {
+  return value.startsWith("stage:") ? { productionStage: value.slice(6) } : { status: value.slice(7) };
+}
 
 const AVATAR_GRADIENTS = [
   "from-[#800020] to-[#800020]",
@@ -122,8 +152,11 @@ export default function ProductionBoard() {
     return BOARD_COLUMNS.map((col) => ({
       ...col,
       cards: list
-        .filter((o) => col.statuses.includes(o.status))
+        .filter((o) => columnKeyFor(o) === col.key)
         .sort((a, b) => {
+          const sa = ALL_STAGES.indexOf(effectiveStage(a) ?? "");
+          const sb = ALL_STAGES.indexOf(effectiveStage(b) ?? "");
+          if (sa !== sb) return sa - sb;
           const ad = a.deliveryDate || "9999-12-31";
           const bd = b.deliveryDate || "9999-12-31";
           return ad.localeCompare(bd);
@@ -148,16 +181,21 @@ export default function ProductionBoard() {
 
   // Drag → PATCH status
   const statusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiPatch<Order>(`/api/orders/${id}`, { status }),
-    onMutate: async ({ id, status }) => {
+    mutationFn: ({ id, move }: { id: string; move: OrderMove }) =>
+      apiPatch<Order>(`/api/orders/${id}`, move),
+    onMutate: async ({ id, move }) => {
       await qc.cancelQueries({ queryKey: ["orders"] });
       const prev = qc.getQueryData<Order[]>(["orders"]);
       if (prev) {
         qc.setQueryData<Order[]>(
           ["orders"],
           prev.map((o) =>
-            o.id === id ? { ...o, status: status as Order["status"] } : o
+            o.id === id
+              ? (() => {
+                  const next = resolveMove(o, move);
+                  return { ...o, status: next.status as Order["status"], productionStage: next.productionStage };
+                })()
+              : o
           )
         );
       }
@@ -170,10 +208,11 @@ export default function ProductionBoard() {
     onSuccess: (_updated, variables) => {
       qc.invalidateQueries({ queryKey: ["orders"] });
       qc.invalidateQueries({ queryKey: ["order"] });
-      const destination = BOARD_COLUMNS.find((column) =>
-        column.statuses.includes(variables.status)
+      const stage = variables.move.productionStage;
+      const destination = BOARD_COLUMNS.find((column) => column.key === columnKeyFor(_updated));
+      toast.success(
+        stage ? `Now at: ${stage}` : destination ? `Moved to ${destination.title}` : "Order updated"
       );
-      toast.success(destination ? `Moved to ${destination.title}` : "Order updated");
     },
   });
 
@@ -191,9 +230,12 @@ export default function ProductionBoard() {
     if (!col) return;
     const order = flatOrders.get(orderId);
     if (!order) return;
-    if (col.statuses.includes(order.status)) return; // already in this column
-    const newStatus = col.statuses[0];
-    statusMut.mutate({ id: orderId, status: newStatus });
+    if (columnKeyFor(order) === col.key) return; // already in this column
+    // Dropping on a production column starts the order at that group's first stage.
+    const move: OrderMove = col.group
+      ? { productionStage: STAGE_GROUPS.find((g) => g.key === col.group)!.stages[0] }
+      : { status: col.dropStatus };
+    statusMut.mutate({ id: orderId, move });
   }
 
   const activeOrder = activeId ? flatOrders.get(activeId) : null;
@@ -328,7 +370,7 @@ export default function ProductionBoard() {
                 col={col}
                 cards={col.cards}
                 onOpen={(id) => go("order", { id })}
-                onMove={(id, status) => statusMut.mutate({ id, status })}
+                onMove={(id, value) => statusMut.mutate({ id, move: moveFromValue(value) })}
                 isUpdating={statusMut.isPending}
               />
             ))}
@@ -397,6 +439,22 @@ function Column({
           <div className="text-xs text-stone-500 text-center py-8 italic">
             Drop orders here
           </div>
+        ) : col.group ? (
+          // Production columns: cards grouped under the stage they are at now.
+          (STAGE_GROUPS.find((g) => g.key === col.group)?.stages ?? [])
+            .map((stage) => ({ stage, items: cards.filter((o) => effectiveStage(o) === stage) }))
+            .filter((sec) => sec.items.length > 0)
+            .map((sec) => (
+              <div key={sec.stage} className="space-y-2.5">
+                <div className="flex items-center justify-between px-0.5 pt-1">
+                  <h4 className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#800020]">{sec.stage}</h4>
+                  <span className="text-[11px] font-semibold tabular-nums text-stone-500">{sec.items.length}</span>
+                </div>
+                {sec.items.map((o) => (
+                  <Card key={o.id} order={o} onClick={() => onOpen(o.id)} onMove={onMove} isUpdating={isUpdating} />
+                ))}
+              </div>
+            ))
         ) : (
           cards.map((o) => (
             <Card
@@ -526,6 +584,31 @@ function Card({
         )}
       </div>
 
+      {/* Where the garment is in the workshop */}
+      {(() => {
+        const stage = effectiveStage(order);
+        if (!stage || PRE_PRODUCTION.includes(order.status)) return null;
+        const done = stageProgress(stage);
+        return (
+          <div className="mt-2.5">
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="min-w-0 truncate font-semibold text-[#8A3F06]">{stage}</span>
+              <span className="shrink-0 tabular-nums text-stone-500">{done}/{ALL_STAGES.length} done</span>
+            </div>
+            <div
+              className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[#EEDFE3]"
+              role="progressbar"
+              aria-label="Production progress"
+              aria-valuemin={0}
+              aria-valuemax={ALL_STAGES.length}
+              aria-valuenow={done}
+            >
+              <div className="h-full rounded-full bg-[#B45309] transition-all" style={{ width: `${(done / ALL_STAGES.length) * 100}%` }} />
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Paid progress bar */}
       {order.sellingPrice > 0 && (
         <div className="mt-2.5">
@@ -548,17 +631,27 @@ function Card({
       {/* Mobile-friendly status control: drag remains available on larger screens. */}
       {!overlay && (
         <div className="mt-3" onClick={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
-          <label className="sr-only" htmlFor={`move-${order.id}`}>Move {order.garmentDesign} to another stage</label>
+          <label className="sr-only" htmlFor={`move-${order.id}`}>Set the stage for {order.garmentDesign}</label>
           <select
             id={`move-${order.id}`}
-            value={order.status}
+            value={PRE_PRODUCTION.includes(order.status) || order.status === "Completed" ? `status:${order.status}` : `stage:${effectiveStage(order)}`}
             disabled={isUpdating}
             onChange={(event) => onMove(order.id, event.target.value)}
             className="w-full min-h-10 rounded-lg border border-[#EEDFE3] bg-[#FCF8F9] px-3 text-xs font-medium text-[#4B2630] outline-none focus:border-[#800020] focus:ring-2 focus:ring-[#800020]/10 disabled:opacity-60"
           >
-            {BOARD_COLUMNS.flatMap((column) => column.statuses).map((status) => (
-              <option key={status} value={status}>{`Move to: ${status}`}</option>
+            <optgroup label="Before production">
+              {PRE_PRODUCTION.map((st) => (
+                <option key={st} value={`status:${st}`}>{st}</option>
+              ))}
+            </optgroup>
+            {STAGE_GROUPS.map((g) => (
+              <optgroup key={g.key} label={g.title}>
+                {g.stages.map((st) => (
+                  <option key={st} value={`stage:${st}`}>{st}</option>
+                ))}
+              </optgroup>
             ))}
+            <option value="status:Completed">Completed</option>
           </select>
         </div>
       )}

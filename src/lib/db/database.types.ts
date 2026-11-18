@@ -371,6 +371,7 @@ export interface Database {
           order_date: string;
           delivery_date: Nullable<string>;
           status: string;
+          production_stage: Nullable<string>;
           assigned_staff_id: Nullable<string>;
           selling_price: number;
           fabric_cost: number;

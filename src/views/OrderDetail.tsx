@@ -52,6 +52,8 @@ import { PremiumButton } from "@/components/atelier/PremiumButton";
 import { ConfirmDeleteDialog } from "@/components/atelier/ConfirmDeleteDialog";
 import { StatusBadge } from "@/components/atelier/StatusBadge";
 import { StatusStepper } from "@/components/atelier/StatusStepper";
+import { ProductionStageTracker } from "@/components/atelier/ProductionStageTracker";
+import { effectiveStage, stageProgress, ALL_STAGES } from "@/lib/production-stages";
 import { EmptyState, SkeletonCard } from "@/components/atelier/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -180,10 +182,12 @@ export default function OrderDetail() {
 
   // Status change mutation
   const statusMut = useMutation({
-    mutationFn: (status: string) =>
-      apiPatch<Order>(`/api/orders/${selectedId}`, { status }),
-    onSuccess: (updated) => {
-      toast.success(`Status updated to ${updated.status}`);
+    mutationFn: (change: string | { productionStage: string }) =>
+      apiPatch<Order>(`/api/orders/${selectedId}`, typeof change === "string" ? { status: change } : change),
+    onSuccess: (updated, change) => {
+      toast.success(
+        typeof change === "string" ? `Status updated to ${updated.status}` : `Stage updated to ${change.productionStage}`
+      );
       qc.setQueryData(["order", selectedId], updated);
       qc.invalidateQueries({ queryKey: ["orders"] });
     },
@@ -775,6 +779,20 @@ export default function OrderDetail() {
         bodyClassName="pt-6"
       >
         <StatusStepper current={order.status} />
+      </SectionCard>
+
+      {/* Detailed production stages */}
+      <SectionCard
+        title="Production Stages"
+        description={`${stageProgress(effectiveStage(order))} of ${ALL_STAGES.length} stages completed. Tap a stage to mark where the garment is now.`}
+        className="mb-6"
+        bodyClassName="pt-4"
+      >
+        <ProductionStageTracker
+          current={effectiveStage(order)}
+          disabled={statusMut.isPending}
+          onSelect={(stage) => statusMut.mutate({ productionStage: stage })}
+        />
       </SectionCard>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
