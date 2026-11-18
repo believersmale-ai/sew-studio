@@ -96,6 +96,8 @@ export interface Order {
   status: OrderStatus;
   /** Detailed workshop stage (see production-stages.ts); null before work starts. */
   productionStage?: string | null;
+  /** Per-stage checklist: stage name -> done / skipped, with when and who. */
+  productionLog?: Record<string, { state: "done" | "skipped"; at?: string; by?: string }>;
   assignedStaffId?: string | null;
   assignedStaff?: User | null;
   sellingPrice: number;
@@ -110,6 +112,7 @@ export interface Order {
   notes?: string | null;
   priority: string;
   createdAt: string;
+  updatedAt?: string;
   payments?: Payment[];
   fittings?: Fitting[];
   tasks?: Task[];

@@ -42,7 +42,9 @@ import {
   STAGE_GROUPS,
   effectiveStage,
   resolveMove,
-  stageProgress,
+  completedCount,
+  enteredCurrentStageAt,
+  logOf,
   type OrderMove,
   type StageGroupKey,
 } from "@/lib/production-stages";
@@ -588,11 +590,18 @@ function Card({
       {(() => {
         const stage = effectiveStage(order);
         if (!stage || PRE_PRODUCTION.includes(order.status)) return null;
-        const done = stageProgress(stage);
+        const log = logOf(order);
+        const done = completedCount(log);
+        const since = enteredCurrentStageAt(log) ?? order.updatedAt ?? null;
+        const days = since ? Math.max(0, Math.floor((Date.now() - new Date(since).getTime()) / 86400000)) : null;
+        const rework = stage === "Alterations Required" || stage === "Alterations in Progress";
+        const finished = order.status === "Collected/Delivered" || order.status === "Completed";
         return (
           <div className="mt-2.5">
             <div className="flex items-center justify-between gap-2 text-[11px]">
-              <span className="min-w-0 truncate font-semibold text-[#8A3F06]">{stage}</span>
+              <span className={cn("min-w-0 truncate font-semibold", rework ? "text-rose-700" : "text-[#8A3F06]")}>
+                {rework && <span aria-hidden="true">● </span>}{stage}
+              </span>
               <span className="shrink-0 tabular-nums text-stone-500">{done}/{ALL_STAGES.length} done</span>
             </div>
             <div
@@ -603,8 +612,13 @@ function Card({
               aria-valuemax={ALL_STAGES.length}
               aria-valuenow={done}
             >
-              <div className="h-full rounded-full bg-[#B45309] transition-all" style={{ width: `${(done / ALL_STAGES.length) * 100}%` }} />
+              <div className={cn("h-full rounded-full transition-all", rework ? "bg-rose-600" : "bg-[#B45309]")} style={{ width: `${(done / ALL_STAGES.length) * 100}%` }} />
             </div>
+            {!finished && days !== null && (
+              <p className={cn("mt-1 text-[11px]", days >= 4 ? "font-semibold text-amber-700" : "text-stone-400")}>
+                {days === 0 ? "Reached this stage today" : `${days} day${days === 1 ? "" : "s"} at this stage`}
+              </p>
+            )}
           </div>
         );
       })()}

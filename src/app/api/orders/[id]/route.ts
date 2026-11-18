@@ -4,7 +4,15 @@ import type { Database } from "@/lib/db/database.types";
 import { getTenant } from "@/lib/db/session";
 import { notifyCustomer, statusChangeMessage } from "@/lib/notify";
 import { serializeOrder, serializeTask } from "@/lib/db/serializers";
-import { isProductionStage, resolveMove } from "@/lib/production-stages";
+import {
+  ALL_STAGES,
+  applyStageState,
+  currentStageOf,
+  isProductionStage,
+  logForStageMove,
+  logOf,
+  resolveMove,
+} from "@/lib/production-stages";
 
 const ORDER_SELECT =
   "*, customer:customers(*), assigned_staff:profiles!orders_assigned_staff_id_fkey(*), payments(*), fittings(*), tasks(*, staff:profiles!tasks_staff_id_fkey(*))";
@@ -59,7 +67,7 @@ export async function PATCH(
   const canSeeAll = ctx.role === "madam" || ctx.role === "trainer";
   let existingQuery = ctx.db
     .from("orders")
-    .select("id, status, production_stage, customer_id, garment_design")
+    .select("id, status, production_stage, production_log, customer_id, garment_design")
     .eq("id", id)
     .eq("shop_id", ctx.shopId);
   if (!canSeeAll) {
@@ -77,7 +85,7 @@ export async function PATCH(
   // Production roles (staff/trainer/trainee) move orders along; money, customer,
   // assignment, scheduling and priority stay owner-only. Enforced here, not just in the UI.
   if (ctx.role !== "madam") {
-    const allowed = new Set(["status", "productionStage", "notes", "designImage"]);
+    const allowed = new Set(["status", "productionStage", "stageUpdate", "notes", "designImage"]);
     for (const k of Object.keys(body)) if (!allowed.has(k)) delete (body as Record<string, unknown>)[k];
   }
   // Picking a detailed stage sets the matching status; picking a plain status starts
@@ -85,13 +93,50 @@ export async function PATCH(
   if (body.productionStage !== undefined && body.productionStage !== null && !isProductionStage(body.productionStage)) {
     return NextResponse.json({ error: "That production stage is not recognised." }, { status: 400 });
   }
-  if (body.status !== undefined || body.productionStage !== undefined) {
+  let productionLog: Record<string, unknown> | undefined;
+  const su = body.stageUpdate as { stage?: unknown; state?: unknown } | undefined;
+  if (su !== undefined) {
+    // One stage ticked, skipped ("not needed") or reopened; the current stage and status follow.
+    if (
+      !su || typeof su !== "object" ||
+      typeof su.stage !== "string" || !ALL_STAGES.includes(su.stage) ||
+      !["done", "skipped", "pending"].includes(su.state as string)
+    ) {
+      return NextResponse.json({ error: "That stage update is not valid." }, { status: 400 });
+    }
+    const { data: me } = await ctx.db.from("profiles").select("full_name").eq("id", ctx.userId).maybeSingle();
+    const log = applyStageState(
+      logOf({ status: existing.status, productionStage: existing.production_stage, productionLog: existing.production_log }),
+      su.stage,
+      su.state as "done" | "skipped" | "pending",
+      me?.full_name ?? undefined
+    );
+    const next = resolveMove(
+      { status: existing.status, productionStage: existing.production_stage },
+      { productionStage: currentStageOf(log) }
+    );
+    body.status = next.status;
+    body.productionStage = next.productionStage;
+    productionLog = log;
+  } else if (body.status !== undefined || body.productionStage !== undefined) {
     const next = resolveMove(
       { status: existing.status, productionStage: existing.production_stage },
       { status: body.status, productionStage: body.productionStage }
     );
     body.status = next.status;
     body.productionStage = next.productionStage;
+    if (next.productionStage !== (existing.production_stage ?? null)) {
+      // Moved on the board: earlier stages count as done, this one and later are outstanding.
+      if (next.productionStage === null) productionLog = {};
+      else {
+        const { data: me } = await ctx.db.from("profiles").select("full_name").eq("id", ctx.userId).maybeSingle();
+        productionLog = logForStageMove(
+          logOf({ status: existing.status, productionStage: existing.production_stage, productionLog: existing.production_log }),
+          next.productionStage,
+          me?.full_name ?? undefined
+        );
+      }
+    }
   }
   const statusChanged = body.status !== undefined && body.status !== existing.status;
 
@@ -103,6 +148,7 @@ export async function PATCH(
     data.delivery_date = body.deliveryDate ? new Date(body.deliveryDate).toISOString() : null;
   if (body.status !== undefined) data.status = body.status;
   if (body.productionStage !== undefined) data.production_stage = body.productionStage;
+  if (productionLog !== undefined) data.production_log = productionLog;
   if (body.designImage !== undefined) {
     const image = cleanImageRef(body.designImage);
     if (image === undefined) {

@@ -53,7 +53,7 @@ import { ConfirmDeleteDialog } from "@/components/atelier/ConfirmDeleteDialog";
 import { StatusBadge } from "@/components/atelier/StatusBadge";
 import { StatusStepper } from "@/components/atelier/StatusStepper";
 import { ProductionStageTracker } from "@/components/atelier/ProductionStageTracker";
-import { effectiveStage, stageProgress, ALL_STAGES } from "@/lib/production-stages";
+import { ALL_STAGES, completedCount, logOf } from "@/lib/production-stages";
 import { EmptyState, SkeletonCard } from "@/components/atelier/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -182,11 +182,11 @@ export default function OrderDetail() {
 
   // Status change mutation
   const statusMut = useMutation({
-    mutationFn: (change: string | { productionStage: string }) =>
+    mutationFn: (change: string | { stageUpdate: { stage: string; state: "done" | "skipped" | "pending" } }) =>
       apiPatch<Order>(`/api/orders/${selectedId}`, typeof change === "string" ? { status: change } : change),
     onSuccess: (updated, change) => {
       toast.success(
-        typeof change === "string" ? `Status updated to ${updated.status}` : `Stage updated to ${change.productionStage}`
+        typeof change === "string" ? `Status updated to ${updated.status}` : `${change.stageUpdate.stage}: ${change.stageUpdate.state === "done" ? "completed" : change.stageUpdate.state === "skipped" ? "marked not needed" : "reopened"}`
       );
       qc.setQueryData(["order", selectedId], updated);
       qc.invalidateQueries({ queryKey: ["orders"] });
@@ -784,14 +784,14 @@ export default function OrderDetail() {
       {/* Detailed production stages */}
       <SectionCard
         title="Production Stages"
-        description={`${stageProgress(effectiveStage(order))} of ${ALL_STAGES.length} stages completed. Tap a stage to mark where the garment is now.`}
+        description={`${completedCount(logOf(order))} of ${ALL_STAGES.length} stages finished. Tick a stage when it is done, or mark it not needed. Untick one to send the garment back.`}
         className="mb-6"
         bodyClassName="pt-4"
       >
         <ProductionStageTracker
-          current={effectiveStage(order)}
+          log={logOf(order)}
           disabled={statusMut.isPending}
-          onSelect={(stage) => statusMut.mutate({ productionStage: stage })}
+          onChange={(stage, state) => statusMut.mutate({ stageUpdate: { stage, state } })}
         />
       </SectionCard>
 

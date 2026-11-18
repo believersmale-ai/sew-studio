@@ -83,23 +83,82 @@ export function effectiveStage(order: { status: string; productionStage?: string
   return isProductionStage(order.productionStage) ? order.productionStage : defaultStageForStatus(order.status);
 }
 
-export type StageState = "done" | "current" | "todo";
+export type StageState = "done" | "skipped" | "current" | "todo";
+export type LogEntry = { state: "done" | "skipped"; at?: string; by?: string };
+export type ProductionLog = Record<string, LogEntry>;
 
-/** Done / current / outstanding for every stage. Delivered means everything is done. */
-export function stageStates(current: string | null): { stage: string; state: StageState }[] {
+const LAST_STAGE = "Collected/Delivered";
+
+/**
+ * The checklist for an order. Orders from before the checklist existed have no
+ * log, so one is worked out from their saved stage: everything before it is done.
+ */
+export function logOf(order: { status: string; productionStage?: string | null; productionLog?: unknown }): ProductionLog {
+  const raw = order.productionLog;
+  if (raw && typeof raw === "object" && Object.keys(raw as object).length > 0) {
+    const out: ProductionLog = {};
+    for (const [stage, e] of Object.entries(raw as Record<string, LogEntry>)) {
+      if (isProductionStage(stage) && e && (e.state === "done" || e.state === "skipped")) out[stage] = e;
+    }
+    return out;
+  }
+  const current = effectiveStage(order);
   const idx = current ? ALL_STAGES.indexOf(current) : -1;
-  const delivered = current === "Collected/Delivered";
-  return ALL_STAGES.map((stage, i) => ({
-    stage,
-    state: idx < 0 ? "todo" : delivered || i < idx ? "done" : i === idx ? "current" : "todo",
-  }));
+  const out: ProductionLog = {};
+  ALL_STAGES.forEach((stage, i) => {
+    if (idx >= 0 && (i < idx || (current === LAST_STAGE && i === idx))) out[stage] = { state: "done" };
+  });
+  return out;
 }
 
-export const stageProgress = (current: string | null) => {
-  const idx = current ? ALL_STAGES.indexOf(current) : -1;
-  if (idx < 0) return 0;
-  return current === "Collected/Delivered" ? ALL_STAGES.length : idx;
-};
+/** The stage being worked on: the first outstanding one. Delivered is final. */
+export function currentStageOf(log: ProductionLog): string {
+  if (log[LAST_STAGE]?.state === "done") return LAST_STAGE;
+  return ALL_STAGES.find((s) => !log[s]) ?? LAST_STAGE;
+}
+
+/** Tick, skip ("not needed") or reopen one stage. Reopening clears its entry. */
+export function applyStageState(
+  log: ProductionLog,
+  stage: string,
+  state: "done" | "skipped" | "pending",
+  by: string | undefined,
+  now = new Date()
+): ProductionLog {
+  const next = { ...log };
+  if (state === "pending") delete next[stage];
+  else next[stage] = { state, at: now.toISOString(), ...(by ? { by } : {}) };
+  return next;
+}
+
+/** Moving a garment to a stage: earlier stages count as done, that stage and later ones are outstanding. */
+export function logForStageMove(log: ProductionLog, stage: string, by: string | undefined, now = new Date()): ProductionLog {
+  const idx = ALL_STAGES.indexOf(stage);
+  const next: ProductionLog = {};
+  ALL_STAGES.forEach((s, i) => {
+    if (i < idx) next[s] = log[s] ?? { state: "done", at: now.toISOString(), ...(by ? { by } : {}) };
+  });
+  if (stage === LAST_STAGE) next[LAST_STAGE] = { state: "done", at: now.toISOString(), ...(by ? { by } : {}) };
+  return next;
+}
+
+/** Every stage as done / skipped / current / outstanding, with who and when. */
+export function stageRows(log: ProductionLog): { stage: string; state: StageState; entry?: LogEntry }[] {
+  const current = currentStageOf(log);
+  return ALL_STAGES.map((stage) => {
+    const entry = log[stage];
+    return { stage, entry, state: entry ? entry.state : stage === current ? "current" : "todo" };
+  });
+}
+
+/** How many stages are finished (done or not needed). */
+export const completedCount = (log: ProductionLog) => ALL_STAGES.filter((s) => log[s]).length;
+
+/** When the garment reached its current stage: the latest tick, or null if unknown. */
+export function enteredCurrentStageAt(log: ProductionLog): string | null {
+  const times = Object.values(log).map((e) => e.at).filter((t): t is string => !!t).sort();
+  return times.length ? times[times.length - 1] : null;
+}
 
 /** Statuses during which Quality Check / Final Approval leave the status as it is. */
 const WORKSHOP_STATUSES = ["In Production", "Fitting", "Alterations", "Ready"];
