@@ -76,16 +76,15 @@ export async function getTenant(): Promise<TenantContext | null> {
     if (selectedShopId && selectedShopId !== profile.shop_id) return null;
 
     // Membership removal must revoke access even when the old profile has
-    // not yet been updated. A mismatched role also fails closed rather than
-    // borrowing the legacy role from another membership.
+    // not yet been updated. Legacy profile roles remain authoritative until
+    // role-management writes are migrated to membership records.
     const { data: membership, error: membershipError } = await db
       .from("studio_memberships")
       .select("role,status")
       .eq("user_id", userId)
       .eq("shop_id", profile.shop_id)
       .maybeSingle();
-    if (membershipError || !membership || membership.status !== "active"
-        || membership.role !== profile.role) return null;
+    if (membershipError || !membership || membership.status !== "active") return null;
 
     return {
       db,
