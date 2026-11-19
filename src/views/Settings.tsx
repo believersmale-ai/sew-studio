@@ -245,7 +245,7 @@ export default function Settings() {
 
   if (isLoading) {
     return (
-      <div className="p-5 md:p-8 max-w-2xl mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-2xl mx-auto w-full">
         <PageHeader eyebrow="Admin" title="Studio Settings" eyebrowIcon={SettingsIcon} />
         <div className="mt-6 space-y-4">
           <div className="h-40 rounded-xl bg-stone-100 animate-pulse" />
@@ -258,7 +258,7 @@ export default function Settings() {
 
   if (isError) {
     return (
-      <div className="p-5 md:p-8 max-w-2xl mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-2xl mx-auto w-full">
         <PageHeader eyebrow="Admin" title="Studio Settings" eyebrowIcon={SettingsIcon} />
         <p className="mt-6 text-sm text-red-600">
           Couldn&apos;t load settings. Try refreshing the page.
@@ -268,7 +268,7 @@ export default function Settings() {
   }
 
   return (
-    <div className="p-5 md:p-8 max-w-6xl mx-auto w-full pb-28">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-6xl mx-auto w-full pb-28">
       <PageHeader
         eyebrow="Admin"
         title="Studio Settings"

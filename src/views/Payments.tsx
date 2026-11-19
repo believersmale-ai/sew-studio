@@ -41,7 +41,7 @@ export default function Payments() {
 
   if (!canSee) {
     return (
-      <div className="p-5 md:p-8 max-w-[820px] mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[820px] mx-auto w-full">
         <PageHeader eyebrow="Money" eyebrowIcon={Wallet} title="Payments" />
         <SectionCard><EmptyState icon={Lock} title="Payments are for the studio owner" description="Money received and owed is only shown to the owner." /></SectionCard>
       </div>
@@ -49,7 +49,7 @@ export default function Payments() {
   }
 
   return (
-    <div className="p-5 md:p-8 max-w-[1180px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1180px] mx-auto w-full">
       <PageHeader eyebrow="Money" eyebrowIcon={Wallet} title="Payments" subtitle="Every payment received, and what customers still owe. Record a payment from the order itself." />
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
         <MetricCard label="RECEIVED, ALL TIME" value={formatCurrency(received, currency)} />
