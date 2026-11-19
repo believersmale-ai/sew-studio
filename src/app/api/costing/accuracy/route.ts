@@ -12,8 +12,17 @@ export async function GET(){
  const rows=(costs??[]).flatMap(c=>{
   const order=map.get(c.order_id);if(!order||!c.actual_lines)return [];
   const estimated=sumLines(c.estimated_lines as CostLine[]),actual=sumLines(c.actual_lines as CostLine[]),price=Number(c.quoted_price);
-  return [{orderId:order.id,garment:order.garment_design,date:order.order_date,quotedPrice:price,estimatedCost:estimated,actualCost:actual,estimatedProfit:price-estimated,actualProfit:price-actual,accuracy:estimated===0?(actual===0):Math.abs(actual-estimated)/estimated<=0.1}];
+  return [{orderId:order.id,garment:order.garment_design,date:order.order_date,reconciledAt:c.reconciled_at,quotedPrice:price,estimatedCost:estimated,actualCost:actual,estimatedProfit:price-estimated,actualProfit:price-actual,accuracy:estimated===0?(actual===0):Math.abs(actual-estimated)/estimated<=0.1}];
  }).sort((a,b)=>b.date.localeCompare(a.date));
  const accurate=rows.filter(x=>x.accuracy).length;
- return Response.json({rows,total:rows.length,accurate,accuracyPercent:rows.length?Math.round(accurate/rows.length*1000)/10:null});
+ const monthly=new Map<string,{month:string;total:number;accurate:number;estimatedCost:number;actualCost:number;profit:number}>();
+ for(const row of rows){
+   const month=String(row.reconciledAt).slice(0,7);
+   const value=monthly.get(month)??{month,total:0,accurate:0,estimatedCost:0,actualCost:0,profit:0};
+   value.total++;if(row.accuracy)value.accurate++;
+   value.estimatedCost+=row.estimatedCost;value.actualCost+=row.actualCost;value.profit+=row.actualProfit;
+   monthly.set(month,value);
+ }
+ const trend=[...monthly.values()].sort((a,b)=>a.month.localeCompare(b.month)).map(x=>({...x,accuracyPercent:Math.round(x.accurate/x.total*1000)/10}));
+ return Response.json({rows,trend,total:rows.length,accurate,accuracyPercent:rows.length?Math.round(accurate/rows.length*1000)/10:null});
 }
