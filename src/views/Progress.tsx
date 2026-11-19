@@ -193,7 +193,7 @@ export default function Progress() {
 
 function TraineeProgress({ traineeId }: { traineeId: string }) {
   return (
-    <div className="p-5 md:p-8 max-w-[1100px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1100px] mx-auto w-full">
       <PageHeader
         eyebrow="My apprenticeship"
         eyebrowIcon={GraduationCap}
@@ -235,7 +235,7 @@ function OwnerProgress() {
   const activeTraineeId = selectedTrainee ? selectedTrainee.id : null;
 
   return (
-    <div className="p-5 md:p-8 max-w-[1100px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1100px] mx-auto w-full">
       <PageHeader
         eyebrow="Apprenticeship"
         eyebrowIcon={GraduationCap}
