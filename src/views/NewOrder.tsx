@@ -63,17 +63,17 @@ export default function NewOrder({ embedded = false, onClose, onCreated }: { emb
   const [deliveryDate, setDeliveryDate] = useState("");
   const [status, setStatus] = useState<string>("Enquiry");
   const [assignedStaffId, setAssignedStaffId] = useState<string>("none");
-  const [sellingPrice, setSellingPrice] = useState("");
-  const [fabricCost, setFabricCost] = useState("");
-  const [labourCost, setLabourCost] = useState("");
-  const [otherCost, setOtherCost] = useState("");
+  const [sellingPrice, setSellingPrice] = useState(params.quotePrice || "");
+  const [fabricCost, setFabricCost] = useState(params.quoteFabricCost || "");
+  const [labourCost, setLabourCost] = useState(params.quoteLabourCost || "");
+  const [otherCost, setOtherCost] = useState(params.quoteOtherCost || "");
   // null = use the studio default from Settings until the owner types one.
-  const [markupInput, setMarkupInput] = useState<string | null>(null);
+  const [markupInput, setMarkupInput] = useState<string | null>(params.quoteMarkup || null);
   // True once the owner has typed their own final price; until then the price
   // follows the True Costing suggestion as the costs change.
-  const [priceEdited, setPriceEdited] = useState(false);
+  const [priceEdited, setPriceEdited] = useState(!!params.quotePrice);
   const [priority, setPriority] = useState<string>("Medium");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(params.quoteSummary || "");
 
   const { data: settings } = useQuery<Settings>({
     queryKey: ["settings"],
@@ -125,6 +125,13 @@ export default function NewOrder({ embedded = false, onClose, onCreated }: { emb
     mutationFn: () => {
       const body: Record<string, unknown> = {
         customerId,
+        quoteCostLines: params.quoteCostLines || JSON.stringify([
+          { key: "materials", label: "Fabric / materials", amount: Math.max(0, Number(fabricCost) || 0) },
+          { key: "labour", label: "Labour", amount: Math.max(0, Number(labourCost) || 0) },
+          { key: "other", label: "Other production costs", amount: Math.max(0, Number(otherCost) || 0) },
+          { key: "overhead", label: "Studio overhead allocation", amount: overhead },
+        ]),
+        quotedPrice: params.quotePrice || undefined,
         garmentDesign: garmentDesign.trim(),
         orderDate,
         status,
