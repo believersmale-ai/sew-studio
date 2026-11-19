@@ -723,15 +723,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
 
       {/* ─── Phone + tablet bottom navigation (priority + More) ── */}
-      <nav className="lg:hidden fixed bottom-0 inset-x-0 z-30 pb-safe pl-safe pr-safe border-t border-[#EEDFE3] bg-white/95 shadow-[0_-8px_28px_rgba(59,10,24,.07)] backdrop-blur-xl">
+      <nav aria-label="Primary mobile navigation" className="lg:hidden fixed bottom-0 inset-x-0 z-30 pb-safe pl-safe pr-safe border-t border-[#EEDFE3] bg-white/95 shadow-[0_-8px_28px_rgba(59,10,24,.07)] backdrop-blur-xl">
         <div className="flex items-center justify-around h-14">
           {mobileItems.map(({ to, label, icon: Icon }) => {
             const active = isActive(to);
             return (
               <button
                 key={to}
+                type="button"
+                aria-label={label}
+                aria-current={active ? "page" : undefined}
                 onClick={() => go(to)}
-                className="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 h-full relative min-w-0 flex-1"
+                className="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 h-full relative min-w-0 flex-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[#800020]"
               >
                 {active && (
                   <span className="absolute top-0 w-8 h-0.5 bg-[#800020] rounded-full" />
@@ -754,10 +757,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {moreItems.length > 0 && (
             <button
               ref={moreTriggerRef}
+              type="button"
+              aria-label="More tools"
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen(true)}
-              className="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 h-full min-w-0 flex-1"
+              className="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 h-full min-w-0 flex-1 rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-[#800020]"
             >
               <MoreHorizontal
                 className={cn("w-5 h-5 shrink-0", moreOpen ? "text-[#800020]" : "text-stone-400")}
@@ -813,7 +818,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                         return (
                           <button type="button" key={to} onClick={() => { go(to); setMoreOpen(false); }}
                             aria-current={active ? "page" : undefined}
-                            className={cn("flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                            className={cn("flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#800020]",
                               active ? "border-[#800020]/35 bg-[#800020]/5 text-[#800020]" : "border-[#F0E6E9] bg-white text-[#46343A] hover:border-[#D2B9BF] hover:bg-[#FCF8F9]")}>
                             <Icon className="size-[17px] shrink-0" strokeWidth={1.7} aria-hidden="true" />
                             <span className="min-w-0 text-xs font-medium leading-snug sm:text-sm">{label}</span>
