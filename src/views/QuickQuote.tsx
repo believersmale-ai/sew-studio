@@ -5,7 +5,7 @@ import { ShoppingBag, TrendingUp, Save } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SavedQuotes } from "@/components/quotes/SavedQuotes";
-import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
+import { apiErrorMessage, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import type { Customer, Settings } from "@/lib/types";
 import { orderOverheadMargin, defaultMarkupPercent } from "@/lib/format";
@@ -114,18 +114,24 @@ export default function QuickQuote() {
   const [itemPresets, setItemPresets] = useState<{name:string;unitCost:number}[]>(STARTER_ITEMS);
   const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>(STARTER_EXTRAS);
   const shopName = useAuth(a => a.user?.shop?.name);
+  const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   useEffect(() => {
-    if (!shopName) return;
-    try {
-      const value = JSON.parse(localStorage.getItem("sewsiness-quote-presets:" + shopName) || "{}");
-      if (Array.isArray(value.items)) setItemPresets(mergeItemPresets(value.items.filter((x: {name?:unknown;unitCost?:unknown}) => typeof x.name === "string" && typeof x.unitCost === "number").slice(0,100)));
-      if (Array.isArray(value.extras)) setExtraPresets(mergeExtraPresets(value.extras.filter((x: {name?:unknown;price?:unknown;cost?:unknown}) => typeof x.name === "string" && typeof x.price === "number" && typeof x.cost === "number").slice(0,100)));
-    } catch { /* Invalid optional local presets do not prevent quoting. */ }
-  }, [shopName]);
+    if (!pricingSettings) return;
+    setItemPresets(mergeItemPresets(pricingSettings.quoteItemPresets ?? []));
+    setExtraPresets(mergeExtraPresets(pricingSettings.quoteExtraPresets ?? []));
+  }, [pricingSettings?.quoteItemPresets, pricingSettings?.quoteExtraPresets]);
   const savePresets = (savedItems: typeof itemPresets, savedExtras: typeof extraPresets) => {
-    if (!shopName) return;
-    try { localStorage.setItem("sewsiness-quote-presets:" + shopName, JSON.stringify({items:savedItems,extras:savedExtras})); }
-    catch { toast.error("Could not save suggestions on this device."); }
+    // Store only the requested category to avoid overwriting another device's changes.
+    // The server validates and isolates all values to the current studio.
+    return apiPatch<Settings>("/api/settings", {
+      quoteItemPresets: savedItems.slice(0, 100),
+      quoteExtraPresets: savedExtras.slice(0, 100),
+    }).then(() => {
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    }).catch((error: unknown) => {
+      toast.error(apiErrorMessage(error, "Could not save studio suggestions."));
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    });
   };
   const addItem = () => {
     if (!itemName.trim()) { toast.error("Enter an item name."); return; }
@@ -144,7 +150,6 @@ export default function QuickQuote() {
   const [discountPct, setDiscountPct] = useState(0);
   const [depositOverride, setDepositOverride] = useState<number | null>(null);
 
-  const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const garmentRates = useMemo(() => parseGarmentLabour(pricingSettings?.quoteGarmentLabour), [pricingSettings?.quoteGarmentLabour]);
   const complexityRates = useMemo(() => parseQuoteComplexities(pricingSettings?.quoteComplexityLevels), [pricingSettings?.quoteComplexityLevels]);
   const garmentDefault = garmentRates.find(x => x.name === garment)?.baseLabour ?? garmentRates[0]?.baseLabour ?? 0;
@@ -386,7 +391,7 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Other production items</h3>
-            <p className="text-xs text-stone-500">Choose a starter item or one you saved on this device. Enter its actual cost before adding.</p>
+            <p className="text-xs text-stone-500">Choose a starter item or one saved for this studio. Enter its actual cost before adding.</p>
             <select aria-label="Saved production items" className="w-full border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a saved item…</option>{itemPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</select>
             <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
             <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
@@ -396,7 +401,7 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Optional extras</h3>
-            <p className="text-xs text-stone-500">Choose a starter extra or one saved on this device, then set its price and cost. Only accepted extras affect the total and profit.</p>
+            <p className="text-xs text-stone-500">Choose a starter extra or one saved for this studio, then set its price and cost. Only accepted extras affect the total and profit.</p>
             <select aria-label="Saved extras" className="w-full border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose a saved extra…</option>{extraPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</select>
             <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
             <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
