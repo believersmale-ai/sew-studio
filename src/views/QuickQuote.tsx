@@ -73,6 +73,17 @@ const EMBELLISHMENT_COST: Record<Embellishment, number> = {
   "Hand-painted": 350,
 };
 
+// Starter suggestions have no assumed cost. The studio sets prices before adding them.
+const STARTER_ITEMS = ["Zipper", "Buttons", "Thread", "Lining", "Interfacing", "Elastic", "Hook and eye", "Shoulder pads", "Boning", "Beads", "Sequins", "Appliqué", "Packaging"].map(name => ({ name, unitCost: 0 }));
+function mergeItemPresets(saved: {name:string;unitCost:number}[]) {
+  const names = new Set(saved.map(x => x.name.trim().toLowerCase()));
+  return [...saved, ...STARTER_ITEMS.filter(x => !names.has(x.name.toLowerCase()))];
+}
+const STARTER_EXTRAS = ["Additional fitting", "Express alteration", "Garment delivery", "Garment steaming", "Garment packaging", "Personalisation", "Extra lining", "Hand embroidery", "Custom beading", "Garment care service"].map(name => ({ name, price: 0, cost: 0 }));
+function mergeExtraPresets(saved: {name:string;price:number;cost:number}[]) {
+  const names = new Set(saved.map(x => x.name.trim().toLowerCase()));
+  return [...saved, ...STARTER_EXTRAS.filter(x => !names.has(x.name.toLowerCase()))];
+}
 type CostItem = { id: string; name: string; quantity: number; unitCost: number };
 type Extra = { id: string; name: string; price: number; cost: number; accepted: boolean };
 const id = () => Math.random().toString(36).slice(2);
@@ -100,15 +111,15 @@ export default function QuickQuote() {
   const [extraCost, setExtraCost] = useState(0);
   const [clientFabric, setClientFabric] = useState(false);
   const [handlingCost, setHandlingCost] = useState(0);
-  const [itemPresets, setItemPresets] = useState<{name:string;unitCost:number}[]>([]);
-  const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>([]);
+  const [itemPresets, setItemPresets] = useState<{name:string;unitCost:number}[]>(STARTER_ITEMS);
+  const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>(STARTER_EXTRAS);
   const shopName = useAuth(a => a.user?.shop?.name);
   useEffect(() => {
     if (!shopName) return;
     try {
       const value = JSON.parse(localStorage.getItem("sewsiness-quote-presets:" + shopName) || "{}");
-      if (Array.isArray(value.items)) setItemPresets(value.items.filter((x: {name?:unknown;unitCost?:unknown}) => typeof x.name === "string" && typeof x.unitCost === "number").slice(0,100));
-      if (Array.isArray(value.extras)) setExtraPresets(value.extras.filter((x: {name?:unknown;price?:unknown;cost?:unknown}) => typeof x.name === "string" && typeof x.price === "number" && typeof x.cost === "number").slice(0,100));
+      if (Array.isArray(value.items)) setItemPresets(mergeItemPresets(value.items.filter((x: {name?:unknown;unitCost?:unknown}) => typeof x.name === "string" && typeof x.unitCost === "number").slice(0,100)));
+      if (Array.isArray(value.extras)) setExtraPresets(mergeExtraPresets(value.extras.filter((x: {name?:unknown;price?:unknown;cost?:unknown}) => typeof x.name === "string" && typeof x.price === "number" && typeof x.cost === "number").slice(0,100)));
     } catch { /* Invalid optional local presets do not prevent quoting. */ }
   }, [shopName]);
   const savePresets = (savedItems: typeof itemPresets, savedExtras: typeof extraPresets) => {
@@ -120,13 +131,13 @@ export default function QuickQuote() {
     if (!itemName.trim()) { toast.error("Enter an item name."); return; }
     setItems(v => [...v, {id:id(),name:itemName.trim(),quantity:Math.max(0,itemQty),unitCost:Math.max(0,itemCost)}]);
     const saved = [...itemPresets.filter(x => x.name.toLowerCase() !== itemName.trim().toLowerCase()),{name:itemName.trim(),unitCost:Math.max(0,itemCost)}];
-    setItemPresets(saved); savePresets(saved,extraPresets); setItemName(""); setItemQty(1); setItemCost(0);
+    setItemPresets(mergeItemPresets(saved)); savePresets(saved,extraPresets); setItemName(""); setItemQty(1); setItemCost(0);
   };
   const addExtra = () => {
     if (!extraName.trim()) { toast.error("Enter an extra name."); return; }
     setExtras(v => [...v,{id:id(),name:extraName.trim(),price:Math.max(0,extraPrice),cost:Math.max(0,extraCost),accepted:true}]);
     const saved = [...extraPresets.filter(x => x.name.toLowerCase() !== extraName.trim().toLowerCase()),{name:extraName.trim(),price:Math.max(0,extraPrice),cost:Math.max(0,extraCost)}];
-    setExtraPresets(saved); savePresets(itemPresets,saved); setExtraName(""); setExtraPrice(0); setExtraCost(0);
+    setExtraPresets(mergeExtraPresets(saved)); savePresets(itemPresets,saved); setExtraName(""); setExtraPrice(0); setExtraCost(0);
   };
   const [markupOverride, setMarkupOverride] = useState<number | null>(null);
   const [finalOverride, setFinalOverride] = useState<number | null>(null);
@@ -375,7 +386,7 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Other production items</h3>
-            <p className="text-xs text-stone-500">Saved suggestions are stored on this device.</p>
+            <p className="text-xs text-stone-500">Choose a starter item or one you saved on this device. Enter its actual cost before adding.</p>
             <select aria-label="Saved production items" className="w-full border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a saved item…</option>{itemPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</select>
             <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
             <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
@@ -385,7 +396,7 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Optional extras</h3>
-            <p className="text-xs text-stone-500">Only accepted extras affect the total and profit. Client acceptance is recorded by the owner.</p>
+            <p className="text-xs text-stone-500">Choose a starter extra or one saved on this device, then set its price and cost. Only accepted extras affect the total and profit.</p>
             <select aria-label="Saved extras" className="w-full border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose a saved extra…</option>{extraPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</select>
             <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
             <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
