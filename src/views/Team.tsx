@@ -225,23 +225,7 @@ export default function Team() {
         eyebrowIcon={UsersRound}
         title="Team"
         subtitle="Manage staff, trainers and the freelancers you commission."
-        actions={
-          owner ? (
-            <div className="hidden md:flex items-center gap-2 rounded-full border border-[#EEDFE3] bg-white pl-2 pr-3 py-1.5 elevate-sm">
-              <span className="w-6 h-6 rounded-full bg-[#800020] flex items-center justify-center text-white text-xs font-display font-semibold">
-                {initialOf(owner.fullName)}
-              </span>
-              <div className="leading-tight">
-                <div className="text-[11px] uppercase tracking-[0.18em] text-stone-400">
-                  Owner
-                </div>
-                <div className="text-xs font-medium text-[#2F151B]">
-                  {owner.fullName}
-                </div>
-              </div>
-            </div>
-          ) : undefined
-        }
+
       />
 
       {/* Premium stat strip */}
