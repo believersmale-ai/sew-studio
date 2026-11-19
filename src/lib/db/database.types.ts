@@ -11,6 +11,28 @@ export interface Database {
   __InternalSupabase: { PostgrestVersion: "12" };
   public: {
     Tables: {
+      inventory_items: {
+        Row: {
+          id: string; shop_id: string; name: string; sku: string | null; category: string;
+          unit: string; quantity: number; reorder_level: number; unit_cost: number;
+          location: string | null; supplier: string | null; notes: string | null;
+          created_at: string; updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["inventory_items"]["Row"]> & { shop_id: string; name: string };
+        Update: Partial<Database["public"]["Tables"]["inventory_items"]["Row"]>;
+        Relationships: [];
+      };
+      inventory_movements: {
+        Row: {
+          id: string; shop_id: string; item_id: string; movement_type: string;
+          quantity_delta: number; note: string | null; created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["inventory_movements"]["Row"]> & {
+          shop_id: string; item_id: string; movement_type: string; quantity_delta: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["inventory_movements"]["Row"]>;
+        Relationships: [];
+      };
       order_cost_reconciliations: {
         Row: {
           order_id: string;
