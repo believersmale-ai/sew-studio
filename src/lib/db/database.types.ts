@@ -83,6 +83,24 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["system_admins"]["Row"]>;
         Relationships: [];
       };
+      studio_invitations: {
+        Row: {
+          id: string;
+          shop_id: string;
+          email: string;
+          role: "madam" | "staff" | "freelancer" | "trainee" | "trainer";
+          token_hash: string;
+          invited_by: string;
+          status: "pending" | "accepted" | "revoked" | "expired";
+          expires_at: string;
+          accepted_by: Nullable<string>;
+          accepted_at: Nullable<string>;
+          created_at: string;
+        };
+        Insert: Pick<Database["public"]["Tables"]["studio_invitations"]["Row"], "shop_id" | "email" | "role" | "token_hash" | "invited_by" | "expires_at"> & Partial<Database["public"]["Tables"]["studio_invitations"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["studio_invitations"]["Row"]>;
+        Relationships: [];
+      };
       studio_memberships: {
         Row: {
           id: string;
