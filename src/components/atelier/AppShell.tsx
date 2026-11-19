@@ -321,11 +321,34 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { enabled, error: menuSettingsError, load: loadMenuSettings } = useMenuSettings();
   const [moreOpen, setMoreOpen] = useState(false);
   const [moreSearch, setMoreSearch] = useState("");
+  const moreDialogRef = useRef<HTMLDivElement>(null);
+  const moreTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     if (!moreOpen) { setMoreSearch(""); return; }
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMoreOpen(false); };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const dialog = moreDialogRef.current;
+    const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), a[href], select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) ?? []).filter(el => el.getClientRects().length > 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); setMoreOpen(false); return; }
+      if (event.key !== "Tab") return;
+      const elements = focusables();
+      if (!elements.length) { event.preventDefault(); dialog?.focus(); return; }
+      const first = elements[0], last = elements[elements.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      moreTriggerRef.current?.focus();
+    };
   }, [moreOpen]);
   // Desktop sidebar: owners see the everyday tools first; the rest sit under
   // "More tools". Remembered per browser once the owner opens or closes it.
@@ -730,6 +753,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           })}
           {moreItems.length > 0 && (
             <button
+              ref={moreTriggerRef}
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
               onClick={() => setMoreOpen(true)}
               className="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 h-full min-w-0 flex-1"
             >
@@ -746,7 +772,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Compact, searchable mobile tools drawer. All sections and access rules remain unchanged. */}
       {moreOpen && (
         <div className="lg:hidden fixed inset-0 z-50 bg-black/45" onClick={() => setMoreOpen(false)}>
-          <div role="dialog" aria-modal="true" aria-label="More tools"
+          <div ref={moreDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="More tools"
             className="absolute inset-x-0 bottom-0 flex max-h-[86dvh] flex-col rounded-t-2xl border-t border-[#EEDFE3] bg-white shadow-2xl sm:mx-auto sm:max-w-xl"
             onClick={(e) => e.stopPropagation()}>
             <div className="shrink-0 border-b border-[#EEDFE3] bg-white px-4 pb-3 pt-3 sm:px-5">
@@ -764,7 +790,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </label>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 scroll-slim sm:px-4">
-              {!moreSearch.trim() && (
+              {(!moreSearch.trim() || "profile account my profile".includes(moreSearch.trim().toLowerCase())) && (
                 <button type="button" onClick={() => { go("profile"); setMoreOpen(false); }}
                   className={cn("mb-3 flex w-full items-center gap-3 rounded-xl border border-[#EEDFE3] px-3 py-2.5 text-left text-sm hover:bg-[#FCF8F9]",view === "profile" && "border-[#800020]/30 bg-[#800020]/5")}>
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#800020] text-xs font-semibold text-white">{(user?.fullName || "?").charAt(0).toUpperCase()}</span>
@@ -781,7 +807,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 return (
                   <section key={section.label} className="mb-3">
                     <h3 className="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#815C66]">{section.label}</h3>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 min-[350px]:grid-cols-2 gap-2">
                       {sectionMore.map(({ to, label, icon: Icon }) => {
                         const active = isActive(to);
                         return (
@@ -798,7 +824,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   </section>
                 );
               })}
-              {moreSearch.trim() && !sections.some(section => section.items.some(item =>
+              {moreSearch.trim() && !"profile account my profile".includes(moreSearch.trim().toLowerCase()) && !sections.some(section => section.items.some(item =>
                 !priorityKeys.includes(item.to) && (item.label + " " + section.label).toLowerCase().includes(moreSearch.trim().toLowerCase())
               )) && <p className="py-8 text-center text-sm text-stone-500">No matching tools. Try another search.</p>}
               {!moreSearch.trim() && (
