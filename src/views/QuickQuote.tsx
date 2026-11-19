@@ -343,7 +343,7 @@ export default function QuickQuote() {
             <p className="text-xs text-stone-500">Labour cost = base labour rate × selected complexity multiplier. Included in True Cost, not profit.</p>
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour (GHS)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? garmentDefault} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
-              <div className="grid gap-1"><Label>Complexity multiplier</Label><p className="rounded-md border bg-white px-3 py-2 text-sm">{COMPLEXITY_LABEL[complexity]}</p></div>
+              <div className="grid gap-1"><Label htmlFor="qq-complexity-multiplier">Complexity multiplier ×</Label><Input id="qq-complexity-multiplier" type="number" min={0.01} max={100} step={0.05} value={complexityMultiplier} onChange={e=>setComplexityMultiplierOverride(Math.min(100,Math.max(0.01,Number(e.target.value)||0.01)))} /></div>
             </div>
             <p className="text-sm font-medium">Calculated labour: {formatCurrency(calc.labour)}</p>
             {(labourBaseOverride !== null || complexityMultiplierOverride !== null) && <button type="button" className="text-xs text-[#800020] underline text-left" onClick={()=>{setLabourBaseOverride(null);setComplexityMultiplierOverride(null);}}>Restore studio labour defaults</button>}
@@ -423,7 +423,7 @@ export default function QuickQuote() {
               value={calc.fabricCost}
             />
             <LineItem
-              label={`Labour · ${garment} (${formatCurrency(calc.labourBase)} × ${COMPLEXITY_LABEL[complexity]})`}
+              label={`Labour · ${garment} (${formatCurrency(calc.labourBase)} × ${complexityMultiplier}×)`}
               value={calc.labour}
             />
             {calc.embellishmentCost > 0 && (
