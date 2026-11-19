@@ -11,6 +11,21 @@ export interface Database {
   __InternalSupabase: { PostgrestVersion: "12" };
   public: {
     Tables: {
+      order_cost_reconciliations: {
+        Row: {
+          order_id: string;
+          shop_id: string;
+          quote_id: Nullable<string>;
+          quoted_price: number;
+          estimated_lines: { key: string; label: string; amount: number }[];
+          actual_lines: Nullable<{ key: string; label: string; amount: number }[]>;
+          reconciled_at: Nullable<string>;
+          created_at: string;
+        };
+        Insert: Pick<Database["public"]["Tables"]["order_cost_reconciliations"]["Row"], "order_id" | "shop_id" | "quoted_price" | "estimated_lines"> & Partial<Database["public"]["Tables"]["order_cost_reconciliations"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["order_cost_reconciliations"]["Row"]>;
+        Relationships: [];
+      };
       shops: {
         Row: {
           id: string;
