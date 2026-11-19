@@ -298,12 +298,12 @@ export default function CustomerProfile() {
               {(customer.name || "?").charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
-              <h1
+              <h2
                 className="font-display font-semibold leading-tight text-[#2F151B] break-words"
                 style={{ fontSize: "clamp(20px, 5vw, 28px)" }}
               >
                 {customer.name}
-              </h1>
+              </h2>
               <p className="mt-0.5 truncate text-xs text-stone-500">
                 {[customer.city, `Client since ${shortDate(customer.createdAt)}`].filter(Boolean).join(" · ")}
               </p>

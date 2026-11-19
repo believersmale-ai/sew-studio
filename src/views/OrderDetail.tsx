@@ -696,12 +696,12 @@ export default function OrderDetail() {
       <div className="rounded-xl elevate-md surface-premium border border-[#EEDFE3] p-6 mb-6 animate-fade-in-up">
         <div className="flex flex-col lg:flex-row lg:items-start justify-between gap-5">
           <div className="min-w-0 flex-1">
-            <h1
+            <h2
               className="font-display font-semibold text-[#2F151B] leading-[1.1]"
               style={{ fontSize: "clamp(26px, 3.4vw, 34px)" }}
             >
               {order.garmentDesign}
-            </h1>
+            </h2>
             <button
               onClick={() => go("customer", { id: order.customerId })}
               className="inline-flex items-center gap-2 mt-2 group"
