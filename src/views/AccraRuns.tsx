@@ -32,6 +32,12 @@ export default function AccraRuns() {
   const [supplierPhone,setSupplierPhone] = useState("");
   const [supplierLocation,setSupplierLocation] = useState("");
   const [showSuppliers,setShowSuppliers] = useState(false);
+  const [editingSupplier,setEditingSupplier] = useState<string | null>(null);
+  const [editName,setEditName] = useState("");
+  const [editPhone,setEditPhone] = useState("");
+  const [editLocation,setEditLocation] = useState("");
+  const saveSupplier = useMutation({mutationFn:()=>apiPatch(`/api/market-run-suppliers/${editingSupplier}`,{name:editName,phone:editPhone,location:editLocation}),onSuccess:()=>{setEditingSupplier(null);toast.success("Supplier updated");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
+  const supplierHistory = (name:string) => (trips??[]).flatMap(t=>t.items.filter(i=>i.supplierName?.trim().toLocaleLowerCase()===name.trim().toLocaleLowerCase()).map(i=>({date:t.tripDate,description:i.description,amount:i.actualCost,planned:i.plannedCost}))).sort((a,b)=>b.date.localeCompare(a.date));
   const addSupplier = useMutation({mutationFn:()=>apiPost("/api/market-run-suppliers",{name:supplierName,phone:supplierPhone,location:supplierLocation}),onSuccess:()=>{setSupplierName("");setSupplierPhone("");setSupplierLocation("");toast.success("Supplier saved");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
   const refresh = () => qc.invalidateQueries({ queryKey: ["accra-runs"] });
   const onError = (e: Error) => toast.error(e.message);
@@ -67,7 +73,23 @@ export default function AccraRuns() {
             <input maxLength={200} aria-label="Supplier location" placeholder="Market / location" value={supplierLocation} onChange={e=>setSupplierLocation(e.target.value)} className={`${field} w-40`}/>
             <PremiumButton type="submit" disabled={addSupplier.isPending}><Plus className="size-4"/> Save supplier</PremiumButton>
           </form>}
-          <div className="divide-y divide-[#EEDFE3]">{suppliers.map(x=><div key={x.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span className="font-medium">{x.name}</span><span className="text-stone-500">{[x.phone,x.location].filter(Boolean).join(" · ")}</span></div>)}{suppliers.length===0 && <p className="text-sm text-stone-500">No suppliers saved yet.</p>}</div>
+          <div className="divide-y divide-[#EEDFE3]">{suppliers.map(x=>{
+            const history=supplierHistory(x.name);const total=history.reduce((n,i)=>n+i.amount,0);
+            return <div key={x.id} className="space-y-2 py-3 text-sm">
+              {editingSupplier===x.id ? <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();saveSupplier.mutate();}}>
+                <input required maxLength={150} aria-label="Edit supplier name" className={field} value={editName} onChange={e=>setEditName(e.target.value)}/>
+                <input maxLength={80} aria-label="Edit supplier phone" className={field} value={editPhone} onChange={e=>setEditPhone(e.target.value)}/>
+                <input maxLength={200} aria-label="Edit supplier location" className={field} value={editLocation} onChange={e=>setEditLocation(e.target.value)}/>
+                <PremiumButton type="submit" size="sm" disabled={saveSupplier.isPending}>Save</PremiumButton>
+                <PremiumButton type="button" variant="outline" size="sm" onClick={()=>setEditingSupplier(null)}>Cancel</PremiumButton>
+              </form> : <div className="flex flex-wrap justify-between gap-2">
+                <div><span className="font-medium">{x.name}</span><span className="ml-2 text-stone-500">{[x.phone,x.location].filter(Boolean).join(" · ")}</span></div>
+                {canEdit && <PremiumButton size="sm" variant="outline" onClick={()=>{setEditingSupplier(x.id);setEditName(x.name);setEditPhone(x.phone??"");setEditLocation(x.location??"");}}>Edit</PremiumButton>}
+              </div>}
+              <p className="text-xs text-stone-500">{history.length} purchases · {formatCurrency(total,currency)} spent</p>
+              {history.length>0 && <details><summary className="cursor-pointer text-xs text-[#650019]">Purchase history</summary><ul className="mt-2 space-y-1">{history.map((h,index)=><li key={index} className="flex flex-wrap justify-between gap-2 text-xs text-stone-600"><span>{formatDate(h.date)} · {h.description}</span><span>{formatCurrency(h.amount,currency)} spent / {formatCurrency(h.planned,currency)} planned</span></li>)}</ul></details>}
+            </div>;
+          })}{suppliers.length===0 && <p className="text-sm text-stone-500">No suppliers saved yet.</p>}</div>
         </div>}
       </SectionCard>
       {!isLoading && !!trips?.length && <div className="mb-5 space-y-3">
