@@ -1,3 +1,4 @@
+import { validLines, sumLines } from "@/lib/order-cost-reconciliation";
 import { cleanImageRef } from "@/lib/image-ref";
 import { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/db/database.types";
@@ -120,6 +121,8 @@ export async function POST(req: NextRequest) {
     if (staff) data.assigned_staff_id = body.assignedStaffId;
   }
 
+  const quoteLines = typeof body.quoteCostLines==="string" ? (()=>{try{return validLines(JSON.parse(body.quoteCostLines))}catch{return null}})() : null;
+  if(body.quoteCostLines && (!quoteLines || !quoteLines.length))return NextResponse.json({error:"Invalid quote cost breakdown."},{status:400});
   const { data: created, error } = await ctx.db
     .from("orders")
     .insert(data)
@@ -127,5 +130,21 @@ export async function POST(req: NextRequest) {
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Preserve the agreed price and original cost assumptions, independent of later Settings changes.
+  const estimatedLines = quoteLines ?? [
+    {key:"materials",label:"Fabric / materials",amount:Math.max(0,Number(body.fabricCost)||0)},
+    {key:"labour",label:"Labour",amount:Math.max(0,Number(body.labourCost)||0)},
+    {key:"other",label:"Other production costs",amount:Math.max(0,Number(body.otherCost)||0)},
+  ];
+  if(quoteLines && Math.abs(sumLines(quoteLines)-Number(body.quoteEstimatedCost??sumLines(quoteLines)))>0.01){
+    return NextResponse.json({error:"Quote costs do not match."},{status:400});
+  }
+  const {error:snapshotError}=await ctx.db.from("order_cost_reconciliations").insert({
+    shop_id:ctx.shopId,order_id:created.id,quoted_price:Math.max(0,Number(body.quotedPrice??body.sellingPrice)||0),estimated_lines:estimatedLines
+  });
+  if(snapshotError){
+    await ctx.db.from("orders").delete().eq("id",created.id).eq("shop_id",ctx.shopId);
+    return NextResponse.json({error:"Could not preserve the cost snapshot: "+snapshotError.message},{status:500});
+  }
   return NextResponse.json(serializeOrder(created), { status: 201 });
 }
