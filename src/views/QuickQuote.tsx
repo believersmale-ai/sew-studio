@@ -26,17 +26,9 @@ import { Separator } from "@/components/ui/separator";
 import { formatCurrency } from "@/lib/format";
 import { useNav } from "@/stores/nav";
 import { cn } from "@/lib/utils";
+import { parseGarmentLabour, parseQuoteComplexities } from "@/lib/quote-pricing";
 
-type GarmentType =
-  | "Gown"
-  | "Suit"
-  | "Dress"
-  | "Agbada"
-  | "Skirt Set"
-  | "Slit & Koba"
-  | "Shirt"
-  | "Trousers"
-  | "Other";
+type GarmentType = string;
 
 type FabricType =
   | "Lace"
@@ -51,25 +43,13 @@ type FabricType =
   | "Crepe"
   | "Other";
 
-type Complexity = "Simple" | "Moderate" | "Elaborate" | "Couture";
+type Complexity = string;
 type Embellishment =
   | "None"
   | "Beading"
   | "Embroidery"
   | "Crystal"
   | "Hand-painted";
-
-const GARMENT_TYPES: GarmentType[] = [
-  "Gown",
-  "Suit",
-  "Dress",
-  "Agbada",
-  "Skirt Set",
-  "Slit & Koba",
-  "Shirt",
-  "Trousers",
-  "Other",
-];
 
 const FABRICS: { label: FabricType; basePerYard: number }[] = [
   { label: "Lace", basePerYard: 180 },
@@ -84,32 +64,6 @@ const FABRICS: { label: FabricType; basePerYard: number }[] = [
   { label: "Crepe", basePerYard: 160 },
   { label: "Other", basePerYard: 150 },
 ];
-
-const LABOUR_BASE: Record<GarmentType, number> = {
-  Gown: 600,
-  Suit: 800,
-  Dress: 500,
-  Agbada: 700,
-  "Skirt Set": 450,
-  "Slit & Koba": 500,
-  Shirt: 300,
-  Trousers: 350,
-  Other: 500,
-};
-
-const COMPLEXITY_MULTIPLIER: Record<Complexity, number> = {
-  Simple: 1.0,
-  Moderate: 1.3,
-  Elaborate: 1.6,
-  Couture: 2.0,
-};
-
-const COMPLEXITY_LABEL: Record<Complexity, string> = {
-  Simple: "1.0×",
-  Moderate: "1.3×",
-  Elaborate: "1.6×",
-  Couture: "2.0×",
-};
 
 const EMBELLISHMENT_COST: Record<Embellishment, number> = {
   None: 0,
@@ -133,6 +87,7 @@ export default function QuickQuote() {
   const [rush, setRush] = useState<boolean>(false);
   const [wastagePct, setWastagePct] = useState(0);
   const [labourBaseOverride, setLabourBaseOverride] = useState<number | null>(null);
+  const [complexityMultiplierOverride, setComplexityMultiplierOverride] = useState<number | null>(null);
   const [rushPercentOverride, setRushPercentOverride] = useState<number | null>(null);
   const [otherCosts, setOtherCosts] = useState(0);
   const [items, setItems] = useState<CostItem[]>([]);
@@ -179,14 +134,25 @@ export default function QuickQuote() {
   const [depositOverride, setDepositOverride] = useState<number | null>(null);
 
   const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
+  const garmentRates = useMemo(() => parseGarmentLabour(pricingSettings?.quoteGarmentLabour), [pricingSettings?.quoteGarmentLabour]);
+  const complexityRates = useMemo(() => parseQuoteComplexities(pricingSettings?.quoteComplexityLevels), [pricingSettings?.quoteComplexityLevels]);
+  const garmentDefault = garmentRates.find(x => x.name === garment)?.baseLabour ?? garmentRates[0]?.baseLabour ?? 0;
+  const complexityDefault = complexityRates.find(x => x.name === complexity)?.multiplier ?? complexityRates[0]?.multiplier ?? 1;
+  const complexityMultiplier = complexityMultiplierOverride ?? complexityDefault;
+  useEffect(() => {
+    if (garmentRates.length && !garmentRates.some(x => x.name === garment)) { setGarment(garmentRates[0].name); setLabourBaseOverride(null); }
+  }, [garmentRates, garment]);
+  useEffect(() => {
+    if (complexityRates.length && !complexityRates.some(x => x.name === complexity)) { setComplexity(complexityRates[0].name); setComplexityMultiplierOverride(null); }
+  }, [complexityRates, complexity]);
   const calc = useMemo(() => {
     const fabricBase =
       FABRICS.find((f) => f.label === fabric)?.basePerYard ?? 150;
     const safeYards = Math.max(0, Number(yards) || 0);
 
     const fabricCost = clientFabric ? 0 : fabricBase * safeYards;
-    const labourBase = labourBaseOverride ?? LABOUR_BASE[garment] ?? 500;
-    const labour = Math.round(labourBase * COMPLEXITY_MULTIPLIER[complexity]);
+    const labourBase = labourBaseOverride ?? garmentDefault;
+    const labour = Math.round(labourBase * complexityMultiplier);
     const embellishmentCost = EMBELLISHMENT_COST[embellishment];
     const subtotal = fabricCost + labour + embellishmentCost;
     const rushPercent = rushPercentOverride ?? pricingSettings?.rushFeePercent ?? 25;
@@ -238,7 +204,7 @@ export default function QuickQuote() {
       extrasCost,
       extrasPrice,
     };
-  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost, labourBaseOverride, rushPercentOverride]);
+  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost, labourBaseOverride, rushPercentOverride, garmentDefault, complexityMultiplier]);
 
   const qc = useQueryClient();
   const [quoteCustomerId, setQuoteCustomerId] = useState("");
@@ -258,7 +224,7 @@ export default function QuickQuote() {
         total: calc.total,
         deposit: calc.suggestedDeposit,
         validUntil: until,
-        inputs: { garment, fabric, yards, complexity, embellishment, rush, labourBase: calc.labourBase, labour: calc.labour, rushPercent: calc.rushPercent, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
+        inputs: { garment, fabric, yards, complexity, complexityMultiplier, embellishment, rush, labourBase: calc.labourBase, labour: calc.labour, rushPercent: calc.rushPercent, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Quote saved"); },
@@ -304,15 +270,15 @@ export default function QuickQuote() {
             <Label htmlFor="qq-garment">Garment Type</Label>
             <Select
               value={garment}
-              onValueChange={(v) => setGarment(v as GarmentType)}
+              onValueChange={(v) => { setGarment(v); setLabourBaseOverride(null); }}
             >
               <SelectTrigger id="qq-garment" className="w-full bg-white">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {GARMENT_TYPES.map((g) => (
-                  <SelectItem key={g} value={g}>
-                    {g}
+                {garmentRates.map((g) => (
+                  <SelectItem key={g.name} value={g.name}>
+                    {g.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -357,23 +323,17 @@ export default function QuickQuote() {
               <Label htmlFor="qq-complexity">Complexity</Label>
               <Select
                 value={complexity}
-                onValueChange={(v) => setComplexity(v as Complexity)}
+                onValueChange={(v) => { setComplexity(v); setComplexityMultiplierOverride(null); }}
               >
                 <SelectTrigger id="qq-complexity" className="w-full bg-white">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {(["Simple", "Moderate", "Elaborate", "Couture"] as Complexity[]).map(
-                    (c) => (
-                      <SelectItem key={c} value={c}>
-                        {c}
-                      </SelectItem>
-                    )
-                  )}
+                  {complexityRates.map((c) => <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
               <p className="text-xs text-stone-500 tabular-nums">
-                Multiplier {COMPLEXITY_LABEL[complexity]}
+                Multiplier {`${complexityMultiplier}×`}
               </p>
             </div>
           </div>
@@ -382,11 +342,11 @@ export default function QuickQuote() {
             <p className="font-semibold text-sm">Labour costing</p>
             <p className="text-xs text-stone-500">Labour cost = base labour rate × selected complexity multiplier. Included in True Cost, not profit.</p>
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour (GHS)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? LABOUR_BASE[garment]} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
-              <div className="grid gap-1"><Label>Complexity multiplier</Label><p className="rounded-md border bg-white px-3 py-2 text-sm">{COMPLEXITY_LABEL[complexity]}</p></div>
+              <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour (GHS)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? garmentDefault} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-complexity-multiplier">Complexity multiplier ×</Label><Input id="qq-complexity-multiplier" type="number" min={0.01} max={100} step={0.05} value={complexityMultiplier} onChange={e=>setComplexityMultiplierOverride(Math.min(100,Math.max(0.01,Number(e.target.value)||0.01)))} /></div>
             </div>
             <p className="text-sm font-medium">Calculated labour: {formatCurrency(calc.labour)}</p>
-            {labourBaseOverride !== null && <button type="button" className="text-xs text-[#800020] underline text-left" onClick={()=>setLabourBaseOverride(null)}>Restore garment default</button>}
+            {(labourBaseOverride !== null || complexityMultiplierOverride !== null) && <button type="button" className="text-xs text-[#800020] underline text-left" onClick={()=>{setLabourBaseOverride(null);setComplexityMultiplierOverride(null);}}>Restore studio labour defaults</button>}
           </div>
           <div className="grid gap-1.5">
             <Label htmlFor="qq-embellishment">Embellishment</Label>
@@ -463,7 +423,7 @@ export default function QuickQuote() {
               value={calc.fabricCost}
             />
             <LineItem
-              label={`Labour · ${garment} (${formatCurrency(calc.labourBase)} × ${COMPLEXITY_LABEL[complexity]})`}
+              label={`Labour · ${garment} (${formatCurrency(calc.labourBase)} × ${complexityMultiplier}×)`}
               value={calc.labour}
             />
             {calc.embellishmentCost > 0 && (

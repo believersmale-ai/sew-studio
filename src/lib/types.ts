@@ -274,6 +274,8 @@ export interface Settings {
   overheadRecoveryBasis?: number;
   /** Default mark-up % on True Cost, pre-filled when pricing an order. */
   defaultMarkupPercent?: number;
+  quoteGarmentLabour?: import("@/lib/quote-pricing").GarmentLabourRate[];
+  quoteComplexityLevels?: import("@/lib/quote-pricing").QuoteComplexityLevel[];
 }
 
 export interface Freelancer {
