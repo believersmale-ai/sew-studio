@@ -125,6 +125,7 @@ export default function Settings() {
   const [overheadRecoveryBasis, setOverheadRecoveryBasis] = useState<number>(0);
   const [selfPayout, setSelfPayout] = useState<number>(0);
   const [defaultMarkupPercent, setDefaultMarkupPercent] = useState<number>(30);
+  const [defaultWastagePercent, setDefaultWastagePercent] = useState<number>(0);
 
   // Capacity & alerts
   const [outstandingBalanceAlertThreshold, setOutstandingBalanceAlertThreshold] =
@@ -152,6 +153,7 @@ export default function Settings() {
     setOverheadRecoveryBasis(data.overheadRecoveryBasis ?? 0);
     setSelfPayout(data.selfPayout ?? 0);
     setDefaultMarkupPercent(data.defaultMarkupPercent ?? 30);
+    setDefaultWastagePercent(data.defaultWastagePercent ?? 0);
 
     setContactPhone(data.contactPhone ?? "");
     setContactEmail(data.contactEmail ?? "");
@@ -213,6 +215,7 @@ export default function Settings() {
         overheadRecoveryBasis,
         selfPayout,
         defaultMarkupPercent,
+        defaultWastagePercent,
         contactPhone: contactPhone.trim(),
         contactEmail: contactEmail.trim(),
         address: address.trim(),
@@ -582,6 +585,8 @@ export default function Settings() {
                 </p>
               </div>
               <div className="grid gap-1.5 sm:max-w-[220px]">
+                <Label htmlFor="default-wastage">Default material wastage (%)</Label>
+                <Input id="default-wastage" type="number" min={0} max={100} step={0.5} value={defaultWastagePercent} onChange={e=>setDefaultWastagePercent(Math.min(100,Math.max(0,Number(e.target.value)||0)))} />
                 <Label htmlFor="default-markup">Default mark-up (%)</Label>
                 <Input
                   id="default-markup"
