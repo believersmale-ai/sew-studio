@@ -125,6 +125,8 @@ export default function NewOrder({ embedded = false, onClose, onCreated }: { emb
     mutationFn: () => {
       const body: Record<string, unknown> = {
         customerId,
+        quoteCostLines: params.quoteCostLines || undefined,
+        quotedPrice: params.quotePrice || undefined,
         garmentDesign: garmentDesign.trim(),
         orderDate,
         status,
