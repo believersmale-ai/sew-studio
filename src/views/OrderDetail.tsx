@@ -45,6 +45,7 @@ import {
 import type { Order, Settings } from "@/lib/types";
 
 import { Invoice } from "@/components/atelier/Invoice";
+import { OrderCostReconciliation } from "@/components/atelier/OrderCostReconciliation";
 import { PageHeader } from "@/components/atelier/PageHeader";
 import { SectionCard } from "@/components/atelier/SectionCard";
 import { ImageUpload } from "@/components/atelier/ImageUpload";
@@ -441,9 +442,8 @@ export default function OrderDetail() {
                 }
               />
               <Stat
-                label="Estimated Profit / Loss"
+                label="Est. Margin"
                 value={formatCurrency(estMargin, currency)}
-                sub={Number(order.sellingPrice)>0?`Profit margin ${(estMargin/Number(order.sellingPrice)*100).toFixed(1)}% · based on recorded costs`:"Add a selling price to calculate margin"}
                 tone={estMargin >= 0 ? "ok" : "warn"}
               />
             </div>
@@ -650,7 +650,10 @@ export default function OrderDetail() {
       )}
 
       {activeTab === "costing" && canSeeMoney && (
-        <div className="mx-auto w-full max-w-[900px] space-y-4">{financialsBlock}</div>
+        <div className="mx-auto w-full max-w-[900px] space-y-4">
+          {financialsBlock}
+          {owner && <SectionCard title="Estimated → Quoted → Actual → Final Profit"><OrderCostReconciliation orderId={order.id} currency={currency}/></SectionCard>}
+        </div>
       )}
 
       {activeTab === "production" && (
