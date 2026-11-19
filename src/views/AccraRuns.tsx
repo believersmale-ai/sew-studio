@@ -13,7 +13,7 @@ import { SectionCard } from "@/components/atelier/SectionCard";
 import { EmptyState } from "@/components/atelier/EmptyState";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
 
-type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number };
+type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number; supplierName?: string; receiptReference?: string };
 type Trip = { id: string; tripDate: string; status: "Planned" | "Logged"; notes: string; items: Item[] };
 
 const field = "h-10 rounded-lg border border-[#D2B9BF] bg-white px-3 text-sm outline-none focus:border-[#650019] focus:ring-4 focus:ring-[#650019]/10";
@@ -36,7 +36,7 @@ export default function AccraRuns() {
   const spentTotal = visibleTrips.reduce((sum,t) => sum + t.items.reduce((n,i)=>n+i.actualCost,0),0);
   const exportCsv = () => {
     const escape = (v: string | number) => '"' + String(v).replaceAll('"','""') + '"';
-    const rows = [["Trip date","Status","Notes","Item","Obtained","Planned cost","Actual cost"],...visibleTrips.flatMap(t => t.items.length ? t.items.map(i => [t.tripDate,t.status,t.notes ?? "",i.description,i.obtained ? "Yes" : "No",i.plannedCost,i.actualCost]) : [[t.tripDate,t.status,t.notes ?? "","","",0,0]])];
+    const rows = [["Trip date","Status","Notes","Item","Supplier","Receipt reference","Obtained","Planned cost","Actual cost"],...visibleTrips.flatMap(t => t.items.length ? t.items.map(i => [t.tripDate,t.status,t.notes ?? "",i.description,i.supplierName ?? "",i.receiptReference ?? "",i.obtained ? "Yes" : "No",i.plannedCost,i.actualCost]) : [[t.tripDate,t.status,t.notes ?? "","","","","",0,0]])];
     const csv = "\uFEFF" + rows.map(row => row.map(escape).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
     const link = document.createElement("a"); link.href=url; link.download="sewsiness-market-runs.csv"; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
@@ -76,11 +76,13 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
   const [desc, setDesc] = useState("");
   const [cost, setCost] = useState("");
   const [notes, setNotes] = useState(trip.notes ?? "");
+  const [supplier, setSupplier] = useState("");
+  const [receipt, setReceipt] = useState("");
   const planned = trip.items.reduce((n, i) => n + i.plannedCost, 0);
   const actual = trip.items.reduce((n, i) => n + i.actualCost, 0);
   const done = trip.items.filter((i) => i.obtained).length;
   const base = `/api/accra-runs/${trip.id}`;
-  const addItem = useMutation({ mutationFn: () => apiPost(`${base}/items`, { description: desc, plannedCost: Number(cost) || 0 }), onSuccess: () => { setDesc(""); setCost(""); onChange(); }, onError });
+  const addItem = useMutation({ mutationFn: () => apiPost(`${base}/items`, { description: desc, plannedCost: Number(cost) || 0, supplierName: supplier, receiptReference: receipt }), onSuccess: () => { setDesc(""); setCost(""); setSupplier(""); setReceipt(""); onChange(); }, onError });
   const patchItem = useMutation({ mutationFn: ({ id, body }: { id: string; body: object }) => apiPatch(`${base}/items/${id}`, body), onSuccess: onChange, onError });
   const delItem = useMutation({ mutationFn: (id: string) => api(`${base}/items/${id}`, { method: "DELETE" }), onSuccess: onChange, onError });
   const patchTrip = useMutation({ mutationFn: (body: object) => apiPatch(base, body), onSuccess: onChange, onError });
@@ -108,7 +110,11 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
             <button type="button" disabled={!canEdit} aria-label={i.obtained ? "Mark not got" : "Mark as got"} onClick={() => patchItem.mutate({ id: i.id, body: { obtained: !i.obtained } })}
               className={`grid size-6 place-items-center rounded-md border ${i.obtained ? "border-[#650019] bg-[#650019] text-white" : "border-[#D2B9BF] bg-white"}`}>{i.obtained && <Check className="size-4" />}</button>
             <span className={`min-w-0 flex-1 text-sm ${i.obtained ? "text-stone-400 line-through" : "text-[#2F151B]"}`}>{i.description}</span>
-            <span className="text-xs text-stone-500">plan {formatCurrency(i.plannedCost, currency)}</span>
+            <div className="flex flex-col gap-1 text-xs text-stone-500">
+              <span>plan {formatCurrency(i.plannedCost, currency)}</span>
+              <input key={i.id + "-supplier"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.supplierName ?? ""} placeholder="Supplier" aria-label="Supplier name" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.supplierName??""))patchItem.mutate({id:i.id,body:{supplierName:v}});}} className={`${field} h-8 w-36`} />
+              <input key={i.id + "-receipt"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.receiptReference ?? ""} placeholder="Receipt reference" aria-label="Receipt reference" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.receiptReference??""))patchItem.mutate({id:i.id,body:{receiptReference:v}});}} className={`${field} h-8 w-36`} />
+            </div>
             <input key={i.actualCost} type="number" min={0} step="0.01" disabled={!canEdit} defaultValue={i.actualCost || ""} placeholder="Spent" aria-label="Amount spent"
               onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== i.actualCost) patchItem.mutate({ id: i.id, body: { actualCost: v } }); }} className={`${field} h-8 w-24 text-right`} />
             {canEdit && <button type="button" aria-label="Remove item" onClick={() => delItem.mutate(i.id)} className="text-stone-400 hover:text-red-700"><Trash2 className="size-4" /></button>}
@@ -120,6 +126,8 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
         <form className="flex flex-wrap gap-2 border-t border-[#EEDFE3] p-4" onSubmit={(e) => { e.preventDefault(); if (desc.trim()) addItem.mutate(); }}>
           <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What to buy (e.g. 6 yards lace)" maxLength={200} className={`${field} min-w-0 flex-1`} />
           <input type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Planned cost" className={`${field} w-32`} />
+          <input value={supplier} onChange={e=>setSupplier(e.target.value)} maxLength={200} placeholder="Supplier (optional)" aria-label="Supplier for new item" className={`${field} w-40`} />
+          <input value={receipt} onChange={e=>setReceipt(e.target.value)} maxLength={200} placeholder="Receipt reference" aria-label="Receipt for new item" className={`${field} w-40`} />
           <PremiumButton type="submit" size="md" disabled={addItem.isPending}><Plus className="size-4" /> Add</PremiumButton>
         </form>
       )}
