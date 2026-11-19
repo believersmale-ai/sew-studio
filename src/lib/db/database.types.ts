@@ -25,7 +25,7 @@ export interface Database {
       inventory_movements: {
         Row: {
           id: string; shop_id: string; item_id: string; movement_type: string;
-          quantity_delta: number; note: string | null; created_at: string;
+          quantity_delta: number; note: string | null; order_id: string | null; unit_cost_at_movement: number | null; created_at: string;
         };
         Insert: Partial<Database["public"]["Tables"]["inventory_movements"]["Row"]> & {
           shop_id: string; item_id: string; movement_type: string; quantity_delta: number;
