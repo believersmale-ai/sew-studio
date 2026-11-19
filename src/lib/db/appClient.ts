@@ -30,6 +30,13 @@ export class AppClient extends DbClient {
       this.resolved = true;
       this.userId = (await this.auth.lookup())?.id ?? null;
     }
+    // Resolve afresh for each query: revocation takes effect immediately.
+    // Null selections fail closed in future multi-studio RLS policies.
+    if (this.role === "authenticated" && this.userId) {
+      this.activeShopId = await this.auth.lookupActiveShopId();
+    } else {
+      this.activeShopId = null;
+    }
     return super.run(sql, params);
   }
 }
