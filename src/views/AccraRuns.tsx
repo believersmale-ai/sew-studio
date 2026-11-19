@@ -162,23 +162,27 @@ function TripCard({ trip, currency, canEdit, suppliers, onChange, onError }: { t
       </div>
       <ul className="divide-y divide-[#EEDFE3]">
         {trip.items.map((i) => (
-          <li key={i.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
+          <li key={i.id} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-3 px-3 py-3 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:px-4">
             <button type="button" disabled={!canEdit} aria-label={i.obtained ? "Mark not got" : "Mark as got"} onClick={() => patchItem.mutate({ id: i.id, body: { obtained: !i.obtained } })}
-              className={`grid size-6 place-items-center rounded-md border ${i.obtained ? "border-[#650019] bg-[#650019] text-white" : "border-[#D2B9BF] bg-white"}`}>{i.obtained && <Check className="size-4" />}</button>
-            <span className={`min-w-0 flex-1 text-sm ${i.obtained ? "text-stone-400 line-through" : "text-[#2F151B]"}`}>{i.description}</span>
-            <div className="flex flex-col gap-1 text-xs text-stone-500">
-              <span>plan {formatCurrency(i.plannedCost, currency)}</span>
-              <input key={i.id + "-supplier"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.supplierName ?? ""} placeholder="Supplier" aria-label="Supplier name" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.supplierName??""))patchItem.mutate({id:i.id,body:{supplierName:v}});}} className={`${field} h-8 w-36`} />
-              {i.receiptImageUrl && <a href={i.receiptImageUrl} target="_blank" rel="noopener noreferrer" className="text-[#650019] underline">View receipt image</a>}
-              {canEdit && <label className="cursor-pointer text-[#650019] underline">
-                {uploadingItem === i.id ? "Uploading…" : i.receiptImageUrl ? "Replace receipt image" : "Attach receipt image"}
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploadingItem !== null} onChange={e=>{void uploadReceipt(i.id,e.target.files?.[0]);e.target.value="";}} />
-              </label>}
-              <input key={i.id + "-receipt"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.receiptReference ?? ""} placeholder="Receipt reference" aria-label="Receipt reference" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.receiptReference??""))patchItem.mutate({id:i.id,body:{receiptReference:v}});}} className={`${field} h-8 w-36`} />
+              className={`mt-0.5 grid size-6 shrink-0 place-items-center rounded-md border ${i.obtained ? "border-[#650019] bg-[#650019] text-white" : "border-[#D2B9BF] bg-white"}`}>{i.obtained && <Check className="size-4" />}</button>
+            <div className="min-w-0">
+              <p className={`whitespace-pre-wrap break-words text-sm leading-6 ${i.obtained ? "text-stone-400 line-through" : "text-[#2F151B]"}`}>{i.description}</p>
+              <p className="mt-1 text-xs text-stone-500">Planned {formatCurrency(i.plannedCost, currency)}</p>
             </div>
-            <input key={i.actualCost} type="number" min={0} step="0.01" disabled={!canEdit} defaultValue={i.actualCost || ""} placeholder="Spent" aria-label="Amount spent"
-              onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== i.actualCost) patchItem.mutate({ id: i.id, body: { actualCost: v } }); }} className={`${field} h-8 w-24 text-right`} />
-            {canEdit && <button type="button" aria-label="Remove item" onClick={() => delItem.mutate(i.id)} className="text-stone-400 hover:text-red-700"><Trash2 className="size-4" /></button>}
+            <div className="col-span-2 grid min-w-0 grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] items-start gap-2 border-t border-[#F2E8EA] pt-3 sm:col-span-1 sm:grid-cols-[minmax(0,1fr)_auto] sm:border-0 sm:pt-0">
+              <div className="min-w-0 space-y-2 sm:col-span-2">
+                <input key={i.id + "-supplier"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.supplierName ?? ""} placeholder="Supplier" aria-label="Supplier name" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.supplierName??""))patchItem.mutate({id:i.id,body:{supplierName:v}});}} className={`${field} h-9 w-full min-w-0`} />
+                <input key={i.id + "-receipt"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.receiptReference ?? ""} placeholder="Receipt reference" aria-label="Receipt reference" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.receiptReference??""))patchItem.mutate({id:i.id,body:{receiptReference:v}});}} className={`${field} h-9 w-full min-w-0`} />
+                {i.receiptImageUrl && <a href={i.receiptImageUrl} target="_blank" rel="noopener noreferrer" className="block text-xs text-[#650019] underline">View receipt image</a>}
+                {canEdit && <label className="block cursor-pointer text-xs text-[#650019] underline">
+                  {uploadingItem === i.id ? "Uploading…" : i.receiptImageUrl ? "Replace receipt image" : "Attach receipt image"}
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploadingItem !== null} onChange={e=>{void uploadReceipt(i.id,e.target.files?.[0]);e.target.value="";}} />
+                </label>}
+              </div>
+              <input key={i.actualCost} type="number" min={0} step="0.01" disabled={!canEdit} defaultValue={i.actualCost || ""} placeholder="Spent" aria-label="Amount spent"
+                onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== i.actualCost) patchItem.mutate({ id: i.id, body: { actualCost: v } }); }} className={`${field} h-9 w-full min-w-0 text-right sm:col-start-1`} />
+              {canEdit && <button type="button" aria-label="Remove item" onClick={() => delItem.mutate(i.id)} className="grid size-9 place-items-center text-stone-400 hover:text-red-700 sm:col-start-2 sm:row-start-2"><Trash2 className="size-4" /></button>}
+            </div>
           </li>
         ))}
         {trip.items.length === 0 && <li className="px-4 py-4 text-sm text-stone-400">Nothing on the list yet.</li>}
