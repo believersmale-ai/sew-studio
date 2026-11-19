@@ -380,6 +380,7 @@ export function serializeSettings(s: Record<string, any>) {
     invoicePrefix: s.invoice_prefix || "INV",
     overheadRecoveryBasis: s.overhead_recovery_basis,
     defaultMarkupPercent: s.default_markup_percent ?? 30,
+    defaultWastagePercent: s.default_wastage_percent ?? 0,
   };
 }
 
