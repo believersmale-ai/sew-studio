@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Zap, ShoppingBag, TrendingUp, Save } from "lucide-react";
+import { ShoppingBag, TrendingUp, Save } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SavedQuotes } from "@/components/quotes/SavedQuotes";
@@ -9,7 +9,6 @@ import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import type { Customer, Settings } from "@/lib/types";
 import { orderOverheadMargin, defaultMarkupPercent } from "@/lib/format";
-import { PageHeader } from "@/components/atelier/PageHeader";
 import { SectionCard } from "@/components/atelier/SectionCard";
 import { AnimatedNumber } from "@/components/atelier/AnimatedNumber";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
