@@ -381,7 +381,7 @@ export default function QuickQuote() {
           <div className="grid gap-2 rounded-lg border border-[#EEDFE3] p-3">
             <p className="font-semibold text-sm">Labour costing</p>
             <p className="text-xs text-stone-500">Labour cost = base labour rate × selected complexity multiplier. Included in True Cost, not profit.</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
               <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour (GHS)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? garmentDefault} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-complexity-multiplier">Complexity multiplier ×</Label><Input id="qq-complexity-multiplier" type="number" min={0.01} max={100} step={0.05} value={complexityMultiplier} onChange={e=>setComplexityMultiplierOverride(Math.min(100,Math.max(0.01,Number(e.target.value)||0.01)))} /></div>
             </div>
@@ -415,26 +415,22 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Other production items</h3>
-            <p className="text-xs text-stone-500">Choose a starter item or one saved for this studio. Enter its actual cost before adding.</p>
-            <select aria-label="Saved production items" className="w-full border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a saved item…</option>{itemPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</select>
-            <p className="text-xs text-stone-500">Choose a starter item or one you saved on this device. Enter its actual cost before adding.</p>
+            <p className="text-xs text-stone-500">Choose a studio-saved item or starter suggestion, then enter its actual cost before adding.</p>
             <select aria-label="Choose production item" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a production item…</option><optgroup label="Your saved items">{itemPresets.filter(x=>!STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup><optgroup label="Starter suggestions">{itemPresets.filter(x=>STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup></select>
             <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
-            <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
             <div className="flex flex-wrap gap-2"><button type="button" onClick={addItem} className="rounded-md border p-2 font-medium">+ Add item</button>{canManagePresets && itemPresets.some(x=>x.name.toLowerCase()===itemName.trim().toLowerCase() && !STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedItem} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
-            {items.map(x=><div key={x.id} className="flex justify-between gap-2 text-sm"><span>{x.name} × {x.quantity} · {formatCurrency(x.quantity*x.unitCost)}</span><button type="button" className="text-red-700 underline" onClick={()=>setItems(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
+            {items.map(x=><div key={x.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm"><span>{x.name} × {x.quantity} · {formatCurrency(x.quantity*x.unitCost)}</span><button type="button" className="text-red-700 underline" onClick={()=>setItems(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
           </div>
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Optional extras</h3>
-            <p className="text-xs text-stone-500">Choose a starter extra or one saved for this studio, then set its price and cost. Only accepted extras affect the total and profit.</p>
-            <select aria-label="Saved extras" className="w-full border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose a saved extra…</option>{extraPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</select>
-            <p className="text-xs text-stone-500">Choose a starter extra or one saved on this device, then set its price and cost. Only accepted extras affect the total and profit.</p>
+            <p className="text-xs text-stone-500">Choose a studio-saved extra or starter suggestion, then set its price and cost. Only accepted extras affect the total and profit.</p>
             <select aria-label="Choose optional extra" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose an optional extra…</option><optgroup label="Your saved extras">{extraPresets.filter(x=>!STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup><optgroup label="Starter suggestions">{extraPresets.filter(x=>STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup></select>
             <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
-            <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
             <div className="flex flex-wrap gap-2"><button type="button" onClick={addExtra} className="rounded-md border p-2 font-medium">+ Add extra</button>{canManagePresets && extraPresets.some(x=>x.name.toLowerCase()===extraName.trim().toLowerCase() && !STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedExtra} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
-            {extras.map(x=><div key={x.id} className="flex justify-between gap-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={x.accepted} onChange={e=>setExtras(v=>v.map(y=>y.id===x.id?{...y,accepted:e.target.checked}:y))} />{x.name} · {formatCurrency(x.price)}</label><button type="button" className="text-red-700 underline" onClick={()=>setExtras(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
+            {extras.map(x=><div key={x.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm"><label className="flex min-w-0 flex-wrap items-center gap-2 break-words"><input type="checkbox" checked={x.accepted} onChange={e=>setExtras(v=>v.map(y=>y.id===x.id?{...y,accepted:e.target.checked}:y))} />{x.name} · {formatCurrency(x.price)}</label><button type="button" className="text-red-700 underline" onClick={()=>setExtras(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
           </div>
           <Separator />
 
@@ -499,7 +495,7 @@ export default function QuickQuote() {
               />
             )}
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
               <div className="grid gap-1"><Label htmlFor="qq-wastage">Wastage %</Label><Input id="qq-wastage" type="number" min={0} value={wastagePct} onChange={e => setWastagePct(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-other">Other costs (GHS)</Label><Input id="qq-other" type="number" min={0} value={otherCosts} onChange={e => setOtherCosts(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-markup">Mark-up %</Label><Input id="qq-markup" type="number" min={0} value={calc.markup} onChange={e => setMarkupOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
@@ -515,12 +511,12 @@ export default function QuickQuote() {
                 Final price after discount
               </p>
               <p
-                className="font-display font-semibold text-[#800020] leading-tight tabular-nums"
+                className="font-display font-semibold text-[#800020] leading-tight tabular-nums break-words"
                 style={{ fontSize: "clamp(28px, 3vw, 40px)" }}
               >
                 <AnimatedNumber value={calc.total} format="currency" />
               </p>
-              <div className="mt-2 flex items-center justify-between text-xs text-stone-500">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
                 <span>{calc.depositPct}% deposit</span>
                 <span className="font-medium text-[#2F151B] tabular-nums">
                   {formatCurrency(calc.suggestedDeposit)}
@@ -528,12 +524,12 @@ export default function QuickQuote() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-xs text-[#4A6B53]">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#4A6B53]">
               <span className="inline-flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" />
                 Estimated profit
               </span>
-              <span className="font-medium tabular-nums">
+              <span className="min-w-0 break-words font-medium tabular-nums">
                 {formatCurrency(calc.estMargin)} · margin {calc.estMarginPct.toFixed(1)}% · mark-up {calc.markupPct.toFixed(1)}%
               </span>
             </div>
