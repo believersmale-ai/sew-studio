@@ -13,7 +13,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if ("supplierName" in body) patch.supplier_name = text(body.supplierName, 200) || null;
   if ("receiptImageUrl" in body) {
     const url = text(body.receiptImageUrl, 200);
-    if (url && !/^\\/api\\/files\\/[0-9a-f-]{36}$/i.test(url)) return Response.json({ error: "Invalid receipt image URL." }, { status: 400 });
+    if (url && !/^\/api\/files\/[0-9a-f-]{36}$/i.test(url)) return Response.json({ error: "Invalid receipt image URL." }, { status: 400 });
     patch.receipt_image_url = url || null;
   }
   if ("receiptReference" in body) patch.receipt_reference = text(body.receiptReference, 200) || null;
