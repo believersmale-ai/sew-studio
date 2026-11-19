@@ -18,7 +18,7 @@ type Trip = { id: string; tripDate: string; status: "Planned" | "Logged"; notes:
 
 const field = "h-10 rounded-lg border border-[#D2B9BF] bg-white px-3 text-sm outline-none focus:border-[#650019] focus:ring-4 focus:ring-[#650019]/10";
 
-/** Accra Runs: plan a buying trip, tick items off, and record what was actually spent. */
+/** Market Runs: plan a buying trip, tick items off, and record what was actually spent. */
 export default function AccraRuns() {
   const qc = useQueryClient();
   const { role } = useRole();
@@ -34,7 +34,7 @@ export default function AccraRuns() {
 
   return (
     <div className="p-5 md:p-8 max-w-[1000px] mx-auto w-full">
-      <PageHeader eyebrow="Studio" eyebrowIcon={Truck} title="Accra Runs" subtitle="Plan a buying trip, tick off what you got, and record what you really spent." />
+      <PageHeader eyebrow="Studio" eyebrowIcon={Truck} title="Market Runs" subtitle="Plan a buying trip, tick off what you got, and record what you really spent." />
       {canEdit && (
         <div className="mb-5 flex flex-wrap items-end gap-3">
           <label className="text-xs font-medium text-stone-600">Trip date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1 block`} /></label>
