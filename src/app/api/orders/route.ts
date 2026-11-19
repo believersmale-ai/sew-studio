@@ -1,4 +1,4 @@
-import { validLines, sumLines } from "@/lib/order-cost-reconciliation";
+import { validLines } from "@/lib/order-cost-reconciliation";
 import { cleanImageRef } from "@/lib/image-ref";
 import { NextRequest, NextResponse } from "next/server";
 import type { Database } from "@/lib/db/database.types";
@@ -136,11 +136,8 @@ export async function POST(req: NextRequest) {
     {key:"labour",label:"Labour",amount:Math.max(0,Number(body.labourCost)||0)},
     {key:"other",label:"Other production costs",amount:Math.max(0,Number(body.otherCost)||0)},
   ];
-  if(quoteLines && Math.abs(sumLines(quoteLines)-Number(body.quoteEstimatedCost??sumLines(quoteLines)))>0.01){
-    return NextResponse.json({error:"Quote costs do not match."},{status:400});
-  }
   const {error:snapshotError}=await ctx.db.from("order_cost_reconciliations").insert({
-    shop_id:ctx.shopId,order_id:created.id,quoted_price:Math.max(0,Number(body.quotedPrice??body.sellingPrice)||0),estimated_lines:estimatedLines
+    shop_id:ctx.shopId,order_id:created.id,quoted_price:Math.max(0,Number(body.sellingPrice)||0),estimated_lines:estimatedLines
   });
   if(snapshotError){
     await ctx.db.from("orders").delete().eq("id",created.id).eq("shop_id",ctx.shopId);
