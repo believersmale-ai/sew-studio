@@ -441,8 +441,9 @@ export default function OrderDetail() {
                 }
               />
               <Stat
-                label="Est. Margin"
+                label="Estimated Profit / Loss"
                 value={formatCurrency(estMargin, currency)}
+                sub={Number(order.sellingPrice)>0?`Profit margin ${(estMargin/Number(order.sellingPrice)*100).toFixed(1)}% · based on recorded costs`:"Add a selling price to calculate margin"}
                 tone={estMargin >= 0 ? "ok" : "warn"}
               />
             </div>

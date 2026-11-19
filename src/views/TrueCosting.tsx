@@ -69,6 +69,8 @@ export default function TrueCosting() {
           diff: price - suggested,
           achieved: markupAchieved(price, trueCost),
           belowCost: price < trueCost,
+          profit: price - trueCost,
+          margin: price > 0 ? ((price - trueCost) / price) * 100 : null,
         };
       })
       .sort((a, b) => new Date(b.order.orderDate).getTime() - new Date(a.order.orderDate).getTime());
@@ -94,6 +96,9 @@ export default function TrueCosting() {
   const belowCostCount = rows.filter((r) => r.belowCost).length;
   const totalCost = rows.reduce((s, r) => s + r.trueCost, 0);
   const totalPrice = rows.reduce((s, r) => s + r.price, 0);
+  const profitableCount = rows.filter(r=>r.profit>0).length;
+  const lossCount = rows.filter(r=>r.profit<0).length;
+  const netEstimatedProfit = rows.reduce((sum,r)=>sum+r.profit,0);
   const blended = totalCost > 0 ? (totalPrice / totalCost - 1) * 100 : null;
 
   return (
@@ -102,7 +107,7 @@ export default function TrueCosting() {
         eyebrow="Pricing"
         eyebrowIcon={Calculator}
         title="True Costing"
-        subtitle="Price every order from what it really costs: materials, labour, other costs and your studio overhead, plus a mark-up."
+        subtitle="Compare each order’s current selling price with recorded costs, allocated overhead and estimated profit or loss."
         actions={
           <div className="flex flex-wrap gap-2">
             <PremiumButton variant="outline" size="md" onClick={() => go("settings")}>
@@ -136,7 +141,12 @@ export default function TrueCosting() {
         />
       </div>
 
-      <SectionCard title="Orders: cost vs price">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Tile icon={Coins} label="Estimated order profit" value={formatCurrency(netEstimatedProfit,currency)} note="Selling prices less entered production costs and allocated overhead." warn={netEstimatedProfit<0}/>
+        <Tile icon={TrendingUp} label="Orders in profit" value={String(profitableCount)} note="Based on currently recorded costs and prices."/>
+        <Tile icon={Calculator} label="Orders at a loss" value={String(lossCount)} note="Review pricing and any missing costs." warn={lossCount>0}/>
+      </div>
+      <SectionCard title="Orders: cost vs price and estimated profit">
         {isLoading ? (
           <p className="p-6 text-sm text-stone-400">Loading…</p>
         ) : rows.length === 0 ? (
@@ -159,6 +169,8 @@ export default function TrueCosting() {
                   <th className="px-4 py-2.5 text-right">True cost</th>
                   <th className="px-4 py-2.5 text-right">Suggested</th>
                   <th className="px-4 py-2.5 text-right">Final price</th>
+                  <th className="px-4 py-2.5 text-right">Profit / loss</th>
+                  <th className="px-4 py-2.5 text-right">Margin</th>
                   <th className="px-4 py-2.5 text-right">Mark-up</th>
                 </tr>
               </thead>
@@ -189,6 +201,8 @@ export default function TrueCosting() {
                         </span>
                       )}
                     </td>
+                    <td className={cn("px-4 py-3 text-right tabular-nums font-semibold",r.profit<0?"text-red-700":"text-emerald-700")}>{formatCurrency(r.profit,currency)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{r.margin==null?"—":`${r.margin.toFixed(1)}%`}</td>
                     <td
                       className={cn(
                         "px-4 py-3 text-right tabular-nums font-medium",
