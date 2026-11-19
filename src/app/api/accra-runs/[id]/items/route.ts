@@ -11,7 +11,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { data: trip } = await ctx.db.from("accra_run_trips").select("id").eq("id", id).eq("shop_id", ctx.shopId).maybeSingle();
   if (!trip) return Response.json({ error: "Trip not found." }, { status: 404 });
   const { data, error } = await ctx.db.from("accra_run_items")
-    .insert({ shop_id: ctx.shopId, trip_id: id, description, planned_cost: money(body.plannedCost), order_id: typeof body.orderId === "string" ? body.orderId : null })
+    .insert({ shop_id: ctx.shopId, trip_id: id, description, supplier_name: text(body.supplierName, 200) || null, receipt_reference: text(body.receiptReference, 200) || null, planned_cost: money(body.plannedCost), order_id: typeof body.orderId === "string" ? body.orderId : null })
     .select("*").single();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   return Response.json(serializeItem(data), { status: 201 });
