@@ -54,6 +54,25 @@ export default function AccraRuns() {
     const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
     const link = document.createElement("a"); link.href=url; link.download="sewsiness-market-runs.csv"; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
   };
+  const printReport = () => {
+    const report = window.open("", "_blank");
+    if (!report) { toast.error("Allow pop-ups to open the printable report."); return; }
+    const safe = (value: string | number) => String(value).replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    })[c] ?? c);
+    const money = (amount: number) => safe(formatCurrency(amount, currency));
+    const body = visibleTrips.map((trip) => {
+      const totalPlanned = trip.items.reduce((sum, item) => sum + item.plannedCost, 0);
+      const totalSpent = trip.items.reduce((sum, item) => sum + item.actualCost, 0);
+      const rows = trip.items.map((item) => `<tr><td>${safe(item.description)}</td><td>${item.obtained ? "Yes" : "No"}</td><td>${safe(item.supplierName ?? "")}</td><td>${safe(item.receiptReference ?? "")}</td><td class="number">${money(item.plannedCost)}</td><td class="number">${money(item.actualCost)}</td></tr>`).join("");
+      return `<section><h2>${safe(formatDate(trip.tripDate))} · ${safe(trip.status)}</h2>${trip.notes ? `<p class="notes"><strong>Notes:</strong> ${safe(trip.notes)}</p>` : ""}<div class="table-wrap"><table><thead><tr><th>Item</th><th>Got?</th><th>Supplier</th><th>Receipt</th><th>Planned</th><th>Spent</th></tr></thead><tbody>${rows || '<tr><td colspan="6">No items listed</td></tr>'}</tbody><tfoot><tr><th colspan="4">Trip totals</th><th class="number">${money(totalPlanned)}</th><th class="number">${money(totalSpent)}</th></tr></tfoot></table></div></section>`;
+    }).join("");
+    report.document.open();
+    report.document.write(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sewsiness Market Runs Report</title><style>
+      *{box-sizing:border-box}body{font:14px/1.5 system-ui,-apple-system,sans-serif;color:#2F151B;margin:0;padding:24px;background:#fff}header{border-bottom:3px solid #800020;padding-bottom:12px;margin-bottom:20px}h1{font-size:24px;margin:0;color:#800020}h2{font-size:17px;margin:0 0 8px}p{margin:5px 0}.summary{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 22px}.summary span{padding:10px 14px;background:#faf6f4;border:1px solid #eadde0;border-radius:8px}section{margin:24px 0;break-inside:avoid-page}.notes{white-space:pre-wrap;overflow-wrap:anywhere;margin-bottom:10px}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}th,td{padding:8px;border:1px solid #e9dfe1;text-align:left;vertical-align:top;overflow-wrap:anywhere;white-space:pre-wrap}th{background:#faf2f4}th:first-child{width:30%}.number{text-align:right;font-variant-numeric:tabular-nums}tfoot th{font-weight:700}.toolbar{margin-bottom:20px}.toolbar button{background:#800020;color:white;border:0;border-radius:8px;padding:10px 16px;font:inherit;cursor:pointer}@media print{body{padding:0}.toolbar{display:none}section{break-inside:auto}thead{display:table-header-group}tr{break-inside:avoid}@page{size:A4 landscape;margin:12mm}}
+    </style></head><body><div class="toolbar"><button onclick="window.print()">Print / Save as PDF</button></div><header><h1>Sewsiness · Market Runs</h1><p>Purchase planning and spending report · ${safe(filter)} trips</p></header><div class="summary"><span><strong>Trips:</strong> ${visibleTrips.length}</span><span><strong>Planned:</strong> ${money(plannedTotal)}</span><span><strong>Spent:</strong> ${money(spentTotal)}</span><span><strong>Difference:</strong> ${money(plannedTotal - spentTotal)}</span></div>${body || "<p>No trips match the selected filter.</p>"}</body></html>`);
+    report.document.close();
+  };
   const addTrip = useMutation({ mutationFn: () => apiPost("/api/accra-runs", { tripDate: date }), onSuccess: () => { toast.success("Trip planned"); refresh(); }, onError });
 
   return (
@@ -100,7 +119,7 @@ export default function AccraRuns() {
         </div>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <label className="text-xs font-medium text-stone-600">Show trips <select className={`${field} ml-2`} value={filter} onChange={e=>setFilter(e.target.value as typeof filter)}><option>All</option><option>Planned</option><option>Logged</option></select></label>
-          <PremiumButton variant="outline" size="sm" onClick={exportCsv}><Download className="size-4"/> Export CSV</PremiumButton>
+          <div className="flex flex-wrap gap-2"><PremiumButton variant="outline" size="sm" onClick={printReport}><Download className="size-4"/> Print / PDF</PremiumButton><PremiumButton variant="outline" size="sm" onClick={exportCsv}><Download className="size-4"/> Export CSV</PremiumButton></div>
         </div>
       </div>}
       {isLoading ? <p className="text-sm text-stone-400">Loading…</p> : !trips?.length ? (
