@@ -687,6 +687,7 @@ export interface Database {
           invoice_prefix: string;
           overhead_recovery_basis: number;
           default_markup_percent: number;
+          default_wastage_percent: number;
           created_at: string;
           updated_at: string;
         };
