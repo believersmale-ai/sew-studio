@@ -68,7 +68,7 @@ export default function AssetRegister() {
   const shown = assets.filter((a) => (!category || a.category === category) && (!status || a.status === status));
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] p-5 md:p-8">
+    <div className="mx-auto w-full max-w-[1100px] px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader eyebrow="Studio equipment" eyebrowIcon={Wrench} title="Asset Register" subtitle="Every machine, tool and piece of equipment, with its condition and maintenance history."
         actions={canEdit ? <PremiumButton onClick={() => setOpen({ id: null })}><Plus className="size-4" /> Add Asset</PremiumButton> : undefined} />
 
