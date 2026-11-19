@@ -268,7 +268,27 @@ export default function QuickQuote() {
 
   const handleConvert = () => {
     go("new-order", {
-      params: { garment: `${garment} — ${fabric}` },
+      params: {
+        garment: `${garment} — ${fabric}`,
+        customerId: quoteCustomerId,
+        quotePrice: String(calc.total),
+        quoteCostLines: JSON.stringify([
+          {key:"materials",label:"Fabric / materials",amount:calc.fabricCost},
+          {key:"wastage",label:"Material wastage",amount:calc.wastage},
+          {key:"labour",label:"Labour",amount:calc.labour},
+          {key:"embellishment",label:"Embellishment",amount:calc.embellishmentCost},
+          {key:"accessories",label:"Accessories and production costs",amount:Math.max(0,otherCosts)+calc.itemTotal},
+          {key:"handling",label:"Customer fabric handling",amount:clientFabric?Math.max(0,handlingCost):0},
+          {key:"extras",label:"Accepted optional extras",amount:calc.extrasCost},
+          {key:"overhead",label:"Studio overhead allocation",amount:calc.overhead},
+        ]),
+        quoteFabricCost: String(calc.fabricCost + calc.wastage),
+        quoteLabourCost: String(calc.labour),
+        quoteOtherCost: String(Math.max(0, calc.trueCost - calc.fabricCost - calc.wastage - calc.labour - calc.overhead)),
+        quoteOverhead: String(calc.overhead),
+        quoteMarkup: String(calc.markup),
+        quoteSummary: `Quote converted from ${garment} — ${fabric}. Includes accepted extras, wastage and production costs. Verify order costs before saving.`,
+      },
     });
   };
 
