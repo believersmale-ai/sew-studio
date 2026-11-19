@@ -268,7 +268,17 @@ export default function QuickQuote() {
 
   const handleConvert = () => {
     go("new-order", {
-      params: { garment: `${garment} — ${fabric}` },
+      params: {
+        garment: `${garment} — ${fabric}`,
+        customerId: quoteCustomerId,
+        quotePrice: String(calc.total),
+        quoteFabricCost: String(calc.fabricCost + calc.wastage),
+        quoteLabourCost: String(calc.labour),
+        quoteOtherCost: String(Math.max(0, calc.trueCost - calc.fabricCost - calc.wastage - calc.labour - calc.overhead)),
+        quoteOverhead: String(calc.overhead),
+        quoteMarkup: String(calc.markup),
+        quoteSummary: `Quote converted from ${garment} — ${fabric}. Includes accepted extras, wastage and production costs. Verify order costs before saving.`,
+      },
     });
   };
 
