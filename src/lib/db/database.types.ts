@@ -741,6 +741,8 @@ export interface Database {
           default_markup_percent: number;
           quote_garment_labour: { name: string; baseLabour: number }[] | null;
           quote_complexity_levels: { name: string; multiplier: number }[] | null;
+          quote_item_presets: { name: string; unitCost: number }[] | null;
+          quote_extra_presets: { name: string; price: number; cost: number }[] | null;
           created_at: string;
           updated_at: string;
         };
