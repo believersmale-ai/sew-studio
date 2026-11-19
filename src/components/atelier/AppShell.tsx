@@ -36,6 +36,7 @@ import {
   Wrench,
   LineChart,
   ChevronDown,
+  Search,
 } from "lucide-react";
 import { useRole, type Role } from "@/stores/role";
 import { useNav, type ViewKey } from "@/stores/nav";
@@ -319,6 +320,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { enabled, error: menuSettingsError, load: loadMenuSettings } = useMenuSettings();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [moreSearch, setMoreSearch] = useState("");
+  useEffect(() => {
+    if (!moreOpen) { setMoreSearch(""); return; }
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setMoreOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [moreOpen]);
   // Desktop sidebar: owners see the everyday tools first; the rest sit under
   // "More tools". Remembered per browser once the owner opens or closes it.
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -735,102 +743,72 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </nav>
 
-      {/* ─── Mobile "More" sheet ─────────────────────────────────── */}
+      {/* Compact, searchable mobile tools drawer. All sections and access rules remain unchanged. */}
       {moreOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-50 bg-black/40 backdrop-blur-sm animate-fade-in"
-          onClick={() => setMoreOpen(false)}
-        >
-          <div
-            className="absolute bottom-0 inset-x-0 pb-safe bg-white rounded-t-2xl border-t border-[#EEDFE3] max-h-[80dvh] overflow-y-auto scroll-slim animate-fade-in-up"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="sticky top-0 bg-white flex items-center justify-between px-5 py-4 border-b border-[#EEDFE3]">
-              <p className="font-display text-lg font-semibold text-[#2F151B]">
-                More
-              </p>
-              <button
-                onClick={() => setMoreOpen(false)}
-                className="w-8 h-8 rounded-full hover:bg-[#FCF8F9] flex items-center justify-center text-stone-400"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="px-3 py-3 pb-1">
-              {/* Always-available profile link — the mobile equivalent of
-                  the desktop sidebar's profile button. */}
-              <div className="mb-4">
-                <button
-                  onClick={() => {
-                    go("profile");
-                    setMoreOpen(false);
-                  }}
-                  className={cn(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                    view === "profile"
-                      ? "bg-[#800020]/8 text-[#800020] font-medium"
-                      : "text-stone-600 hover:bg-[#FCF8F9]"
-                  )}
-                >
-                  <div className="w-7 h-7 rounded-full bg-[#800020] text-white flex items-center justify-center text-[11px] font-semibold shrink-0">
-                    {(user?.fullName || "?").charAt(0).toUpperCase()}
-                  </div>
-                  <span className="flex-1 text-left truncate">{user?.fullName || "My profile"}</span>
-                  <ChevronRight className="w-4 h-4 text-stone-300" />
-                </button>
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/45" onClick={() => setMoreOpen(false)}>
+          <div role="dialog" aria-modal="true" aria-label="More tools"
+            className="absolute inset-x-0 bottom-0 flex max-h-[86dvh] flex-col rounded-t-2xl border-t border-[#EEDFE3] bg-white shadow-2xl sm:mx-auto sm:max-w-xl"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="shrink-0 border-b border-[#EEDFE3] bg-white px-4 pb-3 pt-3 sm:px-5">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-stone-200" aria-hidden="true" />
+              <div className="mb-3 flex items-center justify-between">
+                <div><h2 className="font-display text-lg font-semibold text-[#2F151B]">More tools</h2><p className="text-xs text-stone-500">Find a workspace or manage your account</p></div>
+                <button type="button" aria-label="Close more menu" onClick={() => setMoreOpen(false)}
+                  className="flex size-9 items-center justify-center rounded-full border border-[#EEDFE3] text-stone-600 hover:bg-[#FCF8F9]"><X className="size-4" /></button>
               </div>
-
+              <label className="flex h-10 items-center gap-2 rounded-lg border border-[#EEDFE3] bg-[#FCFAFA] px-3 focus-within:border-[#800020]">
+                <Search className="size-4 shrink-0 text-stone-400" aria-hidden="true" />
+                <input autoFocus aria-label="Search tools" type="search" value={moreSearch}
+                  onChange={(e) => setMoreSearch(e.target.value)} placeholder="Search tools..."
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[#2F151B] outline-none placeholder:text-stone-400" />
+              </label>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-3 scroll-slim sm:px-4">
+              {!moreSearch.trim() && (
+                <button type="button" onClick={() => { go("profile"); setMoreOpen(false); }}
+                  className={cn("mb-3 flex w-full items-center gap-3 rounded-xl border border-[#EEDFE3] px-3 py-2.5 text-left text-sm hover:bg-[#FCF8F9]",view === "profile" && "border-[#800020]/30 bg-[#800020]/5")}>
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#800020] text-xs font-semibold text-white">{(user?.fullName || "?").charAt(0).toUpperCase()}</span>
+                  <span className="min-w-0 flex-1"><span className="block truncate font-medium text-[#2F151B]">{user?.fullName || "My profile"}</span><span className="block text-xs text-stone-500">Account and profile</span></span>
+                  <ChevronRight className="size-4 text-stone-400" />
+                </button>
+              )}
               {sections.map((section) => {
-                const sectionMore = section.items.filter(
-                  (i) => !priorityKeys.includes(i.to)
+                const sectionMore = section.items.filter((item) =>
+                  !priorityKeys.includes(item.to) &&
+                  (!moreSearch.trim() || (item.label + " " + section.label).toLowerCase().includes(moreSearch.trim().toLowerCase()))
                 );
-                if (sectionMore.length === 0) return null;
+                if (!sectionMore.length) return null;
                 return (
-                  <div key={section.label} className="mb-4">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-stone-400 px-3 mb-1.5">
-                      {section.label}
-                    </p>
-                    <div className="space-y-0.5">
+                  <section key={section.label} className="mb-3">
+                    <h3 className="mb-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#815C66]">{section.label}</h3>
+                    <div className="grid grid-cols-2 gap-2">
                       {sectionMore.map(({ to, label, icon: Icon }) => {
                         const active = isActive(to);
                         return (
-                          <button
-                            key={to}
-                            onClick={() => {
-                              go(to);
-                              setMoreOpen(false);
-                            }}
-                            className={cn(
-                              "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors",
-                              active
-                                ? "bg-[#800020]/8 text-[#800020] font-medium"
-                                : "text-stone-600 hover:bg-[#FCF8F9]"
-                            )}
-                          >
-                            <Icon className="w-[18px] h-[18px]" strokeWidth={1.5} />
-                            <span className="flex-1 text-left">{label}</span>
-                            <ChevronRight className="w-4 h-4 text-stone-300" />
+                          <button type="button" key={to} onClick={() => { go(to); setMoreOpen(false); }}
+                            aria-current={active ? "page" : undefined}
+                            className={cn("flex min-h-12 items-center gap-2 rounded-xl border px-3 py-2 text-left transition-colors",
+                              active ? "border-[#800020]/35 bg-[#800020]/5 text-[#800020]" : "border-[#F0E6E9] bg-white text-[#46343A] hover:border-[#D2B9BF] hover:bg-[#FCF8F9]")}>
+                            <Icon className="size-[17px] shrink-0" strokeWidth={1.7} aria-hidden="true" />
+                            <span className="min-w-0 text-xs font-medium leading-snug sm:text-sm">{label}</span>
                           </button>
                         );
                       })}
                     </div>
-                  </div>
+                  </section>
                 );
               })}
-
-              <div className="mb-3 pt-1 border-t border-[#EEDFE3]">
-                <button
-                  onClick={() => {
-                    setMoreOpen(false);
-                    logout();
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 mt-2 rounded-lg text-sm text-stone-500 hover:bg-[#FCF8F9] hover:text-[#800020] transition-colors"
-                >
-                  <LogOut className="w-[18px] h-[18px]" strokeWidth={1.5} />
-                  <span className="flex-1 text-left">Sign out</span>
+              {moreSearch.trim() && !sections.some(section => section.items.some(item =>
+                !priorityKeys.includes(item.to) && (item.label + " " + section.label).toLowerCase().includes(moreSearch.trim().toLowerCase())
+              )) && <p className="py-8 text-center text-sm text-stone-500">No matching tools. Try another search.</p>}
+              {!moreSearch.trim() && (
+                <button type="button" onClick={() => { setMoreOpen(false); logout(); }}
+                  className="mt-1 flex w-full items-center gap-2 border-t border-[#EEDFE3] px-2 py-3 text-left text-sm text-stone-600 hover:text-[#800020]">
+                  <LogOut className="size-4" strokeWidth={1.7} /> Sign out
                 </button>
-              </div>
+              )}
             </div>
+            <div className="shrink-0 pb-safe" />
           </div>
         </div>
       )}
