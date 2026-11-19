@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { SavedQuotes } from "@/components/quotes/SavedQuotes";
 import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
-import type { Customer } from "@/lib/types";
+import type { Customer, Settings } from "@/lib/types";
+import { orderOverheadMargin, defaultMarkupPercent } from "@/lib/format";
 import { PageHeader } from "@/components/atelier/PageHeader";
 import { SectionCard } from "@/components/atelier/SectionCard";
 import { AnimatedNumber } from "@/components/atelier/AnimatedNumber";
@@ -129,6 +130,7 @@ export default function QuickQuote() {
   const [embellishment, setEmbellishment] = useState<Embellishment>("None");
   const [rush, setRush] = useState<boolean>(false);
 
+  const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const calc = useMemo(() => {
     const fabricBase =
       FABRICS.find((f) => f.label === fabric)?.basePerYard ?? 150;
@@ -140,13 +142,16 @@ export default function QuickQuote() {
     const embellishmentCost = EMBELLISHMENT_COST[embellishment];
     const subtotal = fabricCost + labour + embellishmentCost;
     const rushPremium = rush ? Math.round(subtotal * 0.25) : 0;
-    const total = subtotal + rushPremium;
-    const suggestedDeposit = Math.round(total * 0.5);
+    const overhead = orderOverheadMargin({ fabricCost }, pricingSettings);
+    const trueCost = fabricCost + labour + embellishmentCost + overhead;
+    const markup = defaultMarkupPercent(pricingSettings);
+    const total = Math.round(trueCost * (1 + markup / 100) + rushPremium);
+    const suggestedDeposit = Math.round(total * (pricingSettings?.depositPercent ?? 50) / 100);
 
-    // estimated margin = total minus direct material costs (fabric + embellishment)
-    const directMaterial = fabricCost + embellishmentCost;
-    const estMargin = total - directMaterial;
-    const estMarginPct = total > 0 ? Math.round((estMargin / total) * 100) : 0;
+    // Profit deducts all known production costs, including labour and allocated overhead.
+    const estMargin = total - trueCost;
+    const estMarginPct = total > 0 ? (estMargin / total) * 100 : 0;
+    const markupPct = trueCost > 0 ? (estMargin / trueCost) * 100 : 0;
 
     return {
       fabricBase,
@@ -159,8 +164,12 @@ export default function QuickQuote() {
       suggestedDeposit,
       estMargin,
       estMarginPct,
+      markupPct,
+      trueCost,
+      overhead,
+      markup,
     };
-  }, [garment, fabric, yards, complexity, embellishment, rush]);
+  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings]);
 
   const qc = useQueryClient();
   const shopName = useAuth((a) => a.user?.shop?.name);
@@ -323,7 +332,7 @@ export default function QuickQuote() {
                 2-Week Rush
               </Label>
               <p className="text-xs text-stone-500">
-                Adds a 25% priority premium.
+                Adds a 25% premium to fabric, labour and embellishment.
               </p>
             </div>
             <Switch
@@ -353,6 +362,9 @@ export default function QuickQuote() {
               />
             )}
 
+            <LineItem label="Allocated overhead" value={calc.overhead} />
+            <LineItem label="TRUE COST" value={calc.trueCost} emphasized />
+            <LineItem label={`Settings mark-up (${calc.markup}%)`} value={calc.trueCost * calc.markup / 100} />
             <Separator />
 
             <LineItem label="Subtotal" value={calc.subtotal} emphasized />
@@ -378,7 +390,7 @@ export default function QuickQuote() {
                 <AnimatedNumber value={calc.total} format="currency" />
               </p>
               <div className="mt-2 flex items-center justify-between text-xs text-stone-500">
-                <span>50% deposit</span>
+                <span>{pricingSettings?.depositPercent ?? 50}% deposit</span>
                 <span className="font-medium text-[#2F151B] tabular-nums">
                   {formatCurrency(calc.suggestedDeposit)}
                 </span>
@@ -388,10 +400,10 @@ export default function QuickQuote() {
             <div className="flex items-center justify-between text-xs text-[#4A6B53]">
               <span className="inline-flex items-center gap-1">
                 <TrendingUp className="w-3 h-3" />
-                Est. margin
+                Estimated profit
               </span>
               <span className="font-medium tabular-nums">
-                {formatCurrency(calc.estMargin)} · {calc.estMarginPct}%
+                {formatCurrency(calc.estMargin)} · margin {calc.estMarginPct.toFixed(1)}% · mark-up {calc.markupPct.toFixed(1)}%
               </span>
             </div>
 
