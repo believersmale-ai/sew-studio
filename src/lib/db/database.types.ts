@@ -739,6 +739,8 @@ export interface Database {
           invoice_prefix: string;
           overhead_recovery_basis: number;
           default_markup_percent: number;
+          quote_garment_labour: { name: string; baseLabour: number }[] | null;
+          quote_complexity_levels: { name: string; multiplier: number }[] | null;
           created_at: string;
           updated_at: string;
         };
