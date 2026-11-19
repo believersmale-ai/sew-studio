@@ -580,9 +580,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <BrandLogo width={72} />
           </button>
-          <span className="font-display text-base font-semibold text-[#2F151B] truncate min-w-0 text-center">
+          <h1 className="font-display text-base font-semibold text-[#2F151B] truncate min-w-0 text-center">
             {activeMeta.label}
-          </span>
+          </h1>
           <button
             onClick={() => go("profile")}
             className="w-11 h-11 rounded-full bg-[#FCF8F9] text-[#800020] flex items-center justify-center text-sm font-semibold shrink-0 ring-2 justify-self-end"
@@ -599,7 +599,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Desktop top bar: studio name, today's date and the account menu. */}
         <div data-topbar className="hidden lg:flex sticky top-0 z-20 h-16 shrink-0 items-center justify-between gap-4 border-b border-[#EEDFE3] bg-[#faf6f4]/90 px-8 backdrop-blur-md">
           <div className="min-w-0">
-            <p className="font-display text-lg font-semibold leading-tight text-[#2F151B] truncate">{activeMeta.label}</p>
+            <h1 className="font-display text-lg font-semibold leading-tight text-[#2F151B] truncate">{activeMeta.label}</h1>
             <p className="text-xs text-stone-500 truncate">
               {shopDisplayName} · {new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}
             </p>
