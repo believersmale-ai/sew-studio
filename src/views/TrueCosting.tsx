@@ -48,6 +48,9 @@ export default function TrueCosting() {
     enabled: canSee,
   });
   const currency = settings?.currency || "GHS";
+  const {data:accuracy} = useQuery<{total:number;accurate:number;accuracyPercent:number|null;rows:{orderId:string;garment:string;date:string;estimatedCost:number;actualCost:number;estimatedProfit:number;actualProfit:number}[]}>({
+    queryKey:["costing-accuracy"],queryFn:()=>apiGet("/api/costing/accuracy"),enabled:canSee,
+  });
 
   const rows = useMemo(() => {
     return (orders || [])
@@ -136,6 +139,12 @@ export default function TrueCosting() {
         />
       </div>
 
+      <SectionCard title="Completed orders · actual profit and quote accuracy">
+        <div className="p-5 space-y-4">
+          <div className="flex flex-wrap items-baseline gap-3"><strong className="text-2xl text-[#800020]">{accuracy?.accuracyPercent==null?"—":`${accuracy.accuracyPercent}%`}</strong><span className="text-sm text-stone-600">of reconciled orders were within 10% of their original estimated cost ({accuracy?.accurate??0} of {accuracy?.total??0})</span></div>
+          {accuracy?.rows.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left"><th className="py-2 pr-4">Completed garment</th><th className="py-2 pr-4 text-right">Estimated profit</th><th className="py-2 pr-4 text-right">Final profit / loss</th></tr></thead><tbody>{accuracy.rows.map(x=><tr key={x.orderId} className="border-t border-[#EEDFE3] cursor-pointer" onClick={()=>go("order",{id:x.orderId})}><td className="py-3 pr-4">{x.garment}<span className="block text-xs text-stone-500">{formatDate(x.date)}</span></td><td className="py-3 pr-4 text-right tabular-nums">{formatCurrency(x.estimatedProfit,currency)}</td><td className={cn("py-3 pr-4 text-right tabular-nums font-semibold",x.actualProfit<0?"text-red-700":"text-emerald-700")}>{formatCurrency(x.actualProfit,currency)}</td></tr>)}</tbody></table></div>:<p className="text-sm text-stone-500">No completed orders with confirmed actual costs yet. Reconcile a completed order to see final profit and quote accuracy here.</p>}
+        </div>
+      </SectionCard>
       <SectionCard title="Orders: cost vs price">
         {isLoading ? (
           <p className="p-6 text-sm text-stone-400">Loading…</p>
