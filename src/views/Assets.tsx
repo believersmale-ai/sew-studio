@@ -41,7 +41,7 @@ export default function Assets() {
   const value = (assets || []).filter((a) => a.status !== "Retired").reduce((n, a) => n + (a.purchaseCost || 0), 0);
 
   return (
-    <div className="p-5 md:p-8 max-w-[1100px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1100px] mx-auto w-full">
       <PageHeader eyebrow="Studio" eyebrowIcon={Package} title="Inventory" subtitle="The equipment and furniture your studio owns, what condition it is in, and when it is next due for service." />
       {overdue.length > 0 && (
         <div role="status" className="mb-4 flex items-center gap-2 rounded-lg border border-[#E6D4D8] bg-[#FBF1F3] px-4 py-3 text-sm text-[#650019]"><AlertTriangle className="size-4" />{overdue.length} item{overdue.length === 1 ? " is" : "s are"} overdue for service.</div>
