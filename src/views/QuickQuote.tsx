@@ -129,6 +129,12 @@ export default function QuickQuote() {
   const [complexity, setComplexity] = useState<Complexity>("Moderate");
   const [embellishment, setEmbellishment] = useState<Embellishment>("None");
   const [rush, setRush] = useState<boolean>(false);
+  const [wastagePct, setWastagePct] = useState(0);
+  const [otherCosts, setOtherCosts] = useState(0);
+  const [markupOverride, setMarkupOverride] = useState<number | null>(null);
+  const [finalOverride, setFinalOverride] = useState<number | null>(null);
+  const [discountPct, setDiscountPct] = useState(0);
+  const [depositOverride, setDepositOverride] = useState<number | null>(null);
 
   const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const calc = useMemo(() => {
@@ -142,11 +148,16 @@ export default function QuickQuote() {
     const embellishmentCost = EMBELLISHMENT_COST[embellishment];
     const subtotal = fabricCost + labour + embellishmentCost;
     const rushPremium = rush ? Math.round(subtotal * 0.25) : 0;
-    const overhead = orderOverheadMargin({ fabricCost }, pricingSettings);
-    const trueCost = fabricCost + labour + embellishmentCost + overhead;
-    const markup = defaultMarkupPercent(pricingSettings);
-    const total = Math.round(trueCost * (1 + markup / 100) + rushPremium);
-    const suggestedDeposit = Math.round(total * (pricingSettings?.depositPercent ?? 50) / 100);
+    const wastage = fabricCost * Math.max(0, wastagePct) / 100;
+    const overhead = orderOverheadMargin({ fabricCost: fabricCost + wastage }, pricingSettings);
+    const trueCost = fabricCost + wastage + labour + embellishmentCost + Math.max(0, otherCosts) + overhead;
+    const markup = markupOverride ?? defaultMarkupPercent(pricingSettings);
+    const recommendedPrice = Math.round(trueCost * (1 + Math.max(0, markup) / 100) + rushPremium);
+    const finalPrice = finalOverride ?? recommendedPrice;
+    const discount = finalPrice * Math.min(100, Math.max(0, discountPct)) / 100;
+    const total = Math.max(0, finalPrice - discount);
+    const depositPct = depositOverride ?? pricingSettings?.depositPercent ?? 50;
+    const suggestedDeposit = Math.round(total * Math.min(100, Math.max(0, depositPct)) / 100);
 
     // Profit deducts all known production costs, including labour and allocated overhead.
     const estMargin = total - trueCost;
@@ -168,8 +179,13 @@ export default function QuickQuote() {
       trueCost,
       overhead,
       markup,
+      wastage,
+      recommendedPrice,
+      finalPrice,
+      discount,
+      depositPct,
     };
-  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings]);
+  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride]);
 
   const qc = useQueryClient();
   const shopName = useAuth((a) => a.user?.shop?.name);
@@ -190,7 +206,7 @@ export default function QuickQuote() {
         total: calc.total,
         deposit: calc.suggestedDeposit,
         validUntil: until,
-        inputs: { garment, fabric, yards, complexity, embellishment, rush },
+        inputs: { garment, fabric, yards, complexity, embellishment, rush, wastagePct, otherCosts, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Quote saved"); },
@@ -362,12 +378,15 @@ export default function QuickQuote() {
               />
             )}
 
+            <LineItem label={`Material wastage (${wastagePct}%)`} value={calc.wastage} />
+            <LineItem label="Other production costs" value={otherCosts} />
             <LineItem label="Allocated overhead" value={calc.overhead} />
             <LineItem label="TRUE COST" value={calc.trueCost} emphasized />
+            <p className="text-xs text-stone-500">Labour is included in True Cost. Overhead follows studio settings.</p>
             <LineItem label={`Settings mark-up (${calc.markup}%)`} value={calc.trueCost * calc.markup / 100} />
             <Separator />
 
-            <LineItem label="Subtotal" value={calc.subtotal} emphasized />
+            <LineItem label="Recommended selling price" value={calc.recommendedPrice} emphasized />
 
             {rush && (
               <LineItem
@@ -377,11 +396,20 @@ export default function QuickQuote() {
               />
             )}
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1"><Label htmlFor="qq-wastage">Wastage %</Label><Input id="qq-wastage" type="number" min={0} value={wastagePct} onChange={e => setWastagePct(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-other">Other costs (GHS)</Label><Input id="qq-other" type="number" min={0} value={otherCosts} onChange={e => setOtherCosts(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-markup">Mark-up %</Label><Input id="qq-markup" type="number" min={0} value={calc.markup} onChange={e => setMarkupOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-deposit">Deposit %</Label><Input id="qq-deposit" type="number" min={0} max={100} value={calc.depositPct} onChange={e => setDepositOverride(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-final">Final price (GHS)</Label><Input id="qq-final" type="number" min={0} value={calc.finalPrice} onChange={e => setFinalOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-discount">Discount %</Label><Input id="qq-discount" type="number" min={0} max={100} value={discountPct} onChange={e => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
+            </div>
+            {calc.discount > 0 && <LineItem label="Discount" value={-calc.discount} />}
             <Separator />
 
             <div className="mt-1 p-4 rounded-md border border-[#800020]/15 bg-gradient-to-br from-[#800020]/5 to-transparent">
               <p className="text-[11px] uppercase tracking-[0.22em] text-[#800020]">
-                Total
+                Final price after discount
               </p>
               <p
                 className="font-display font-semibold text-[#800020] leading-tight tabular-nums"
@@ -390,7 +418,7 @@ export default function QuickQuote() {
                 <AnimatedNumber value={calc.total} format="currency" />
               </p>
               <div className="mt-2 flex items-center justify-between text-xs text-stone-500">
-                <span>{pricingSettings?.depositPercent ?? 50}% deposit</span>
+                <span>{calc.depositPct}% deposit</span>
                 <span className="font-medium text-[#2F151B] tabular-nums">
                   {formatCurrency(calc.suggestedDeposit)}
                 </span>
@@ -407,6 +435,8 @@ export default function QuickQuote() {
               </span>
             </div>
 
+            {calc.estMargin < 0 && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">Warning: final price is below True Cost. This quote makes a loss.</p>}
+            {calc.estMargin >= 0 && calc.estMarginPct < 10 && <p role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">Low profit margin: consider reviewing the selling price.</p>}
             <PremiumButton
               onClick={handleConvert}
               size="md"
