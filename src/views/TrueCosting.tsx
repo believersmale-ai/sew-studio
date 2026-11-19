@@ -82,7 +82,7 @@ export default function TrueCosting() {
 
   if (!canSee) {
     return (
-      <div className="p-5 md:p-8 max-w-[820px] mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[820px] mx-auto w-full">
         <PageHeader eyebrow="Pricing" eyebrowIcon={Calculator} title="True Costing" />
         <SectionCard>
           <EmptyState
@@ -106,7 +106,7 @@ export default function TrueCosting() {
   const blended = totalCost > 0 ? (totalPrice / totalCost - 1) * 100 : null;
 
   return (
-    <div className="p-5 md:p-8 max-w-[1180px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1180px] mx-auto w-full">
       <PageHeader
         eyebrow="Pricing"
         eyebrowIcon={Calculator}
