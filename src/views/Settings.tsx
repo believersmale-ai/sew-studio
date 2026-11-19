@@ -98,6 +98,7 @@ function newItemId() {
 
 export default function Settings() {
   const queryClient = useQueryClient();
+  const canManageQuotePricing = useRole(s => s.role === "madam");
   const setStudioName = useRole((s) => s.setStudioName);
   const setOwnerLabel = useRole((s) => s.setOwnerLabel);
 
@@ -231,8 +232,10 @@ export default function Settings() {
         depositPercent,
         rushFeePercent,
         quoteValidDays,
-        quoteGarmentLabour: garmentLabour.map(x => ({ name: x.name.trim(), baseLabour: x.baseLabour })),
-        quoteComplexityLevels: complexityLevels.map(x => ({ name: x.name.trim(), multiplier: x.multiplier })),
+        ...(canManageQuotePricing ? {
+          quoteGarmentLabour: garmentLabour.map(x => ({ name: x.name.trim(), baseLabour: x.baseLabour })),
+          quoteComplexityLevels: complexityLevels.map(x => ({ name: x.name.trim(), multiplier: x.multiplier })),
+        } : {}),
         fullBalanceBeforePickup,
         fittingsIncluded,
         alterationsWindowDays,
@@ -288,7 +291,7 @@ export default function Settings() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const pricingError = validateQuotePricing(garmentLabour, complexityLevels);
+          const pricingError = canManageQuotePricing ? validateQuotePricing(garmentLabour, complexityLevels) : null;
           if (pricingError) { toast.error(pricingError); return; }
           saveMutation.mutate();
         }}
@@ -660,7 +663,7 @@ export default function Settings() {
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Pricing policies & terms</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Deposits, rush fees, fittings and the client-facing terms shown on quotes and invoices.</p>
             </div>
-        <SectionCard title="Garment labour prices" action={<Scissors className="size-4 text-stone-400" />}>
+        {canManageQuotePricing && <SectionCard title="Garment labour prices" action={<Scissors className="size-4 text-stone-400" />}>
           <div className="space-y-3 p-1">
             <p className="text-xs text-stone-500">Studio-wide base labour defaults for new quotes. Each quote can still override its labour without changing these prices.</p>
             {garmentLabour.map((item, index) => (
@@ -672,8 +675,8 @@ export default function Settings() {
             ))}
             <div className="flex flex-wrap gap-2"><Input className="min-w-0 flex-1" maxLength={80} placeholder="New garment type" aria-label="New garment type" value={newGarmentName} onChange={e=>setNewGarmentName(e.target.value)} /><PremiumButton type="button" variant="outline" size="sm" onClick={()=>{const name=newGarmentName.trim();if(!name)return;setGarmentLabour(prev=>[...prev,{name,baseLabour:0}]);setNewGarmentName("");}}><Plus className="size-4"/> Add garment</PremiumButton></div>
           </div>
-        </SectionCard>
-        <SectionCard title="Complexity levels" action={<Percent className="size-4 text-stone-400" />}>
+        </SectionCard>}
+        {canManageQuotePricing && <SectionCard title="Complexity levels" action={<Percent className="size-4 text-stone-400" />}>
           <div className="space-y-3 p-1">
             <p className="text-xs text-stone-500">Rename, add or remove levels and set the labour multiplier used by new quotes. Example: 1.3 means 130% of base labour.</p>
             {complexityLevels.map((item,index)=>(
@@ -685,7 +688,7 @@ export default function Settings() {
             ))}
             <div className="flex flex-wrap gap-2"><Input className="min-w-0 flex-1" maxLength={80} placeholder="New complexity level" aria-label="New complexity level" value={newComplexityName} onChange={e=>setNewComplexityName(e.target.value)} /><PremiumButton type="button" variant="outline" size="sm" onClick={()=>{const name=newComplexityName.trim();if(!name)return;setComplexityLevels(prev=>[...prev,{name,multiplier:1}]);setNewComplexityName("");}}><Plus className="size-4"/> Add level</PremiumButton></div>
           </div>
-        </SectionCard>
+        </SectionCard>}
         <SectionCard
           title="Money"
           action={<Percent className="w-4 h-4 text-stone-400" />}
