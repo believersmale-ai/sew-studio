@@ -30,6 +30,9 @@ create table if not exists public.inventory_movements (
 create index if not exists inventory_movements_item_date_idx on public.inventory_movements(item_id,created_at desc);
 create or replace function public.apply_inventory_movement() returns trigger language plpgsql as $$
 begin
+  if new.movement_type = 'opening' then
+    raise exception 'Opening balance is recorded automatically when an item is created';
+  end if;
   update public.inventory_items set quantity=quantity+new.quantity_delta,updated_at=now()
   where id=new.item_id and shop_id=new.shop_id and quantity+new.quantity_delta>=0;
   if not found then raise exception 'Insufficient stock or item not found in studio'; end if;
@@ -44,3 +47,28 @@ begin raise exception 'Inventory movement history is immutable'; end $$;
 drop trigger if exists inventory_movement_immutable on public.inventory_movements;
 create trigger inventory_movement_immutable before update or delete on public.inventory_movements
 for each row execute function public.prevent_inventory_movement_change();
+
+-- Initial quantity and its audit entry are committed in the same transaction.
+-- This AFTER INSERT trigger creates the opening movement without double-counting it.
+create or replace function public.record_inventory_opening_balance() returns trigger language plpgsql as $$
+begin
+  if new.quantity > 0 then
+    insert into public.inventory_movements (shop_id,item_id,movement_type,quantity_delta,note)
+    values (new.shop_id,new.id,'opening',new.quantity,'Opening balance');
+  end if;
+  return new;
+end $$;
+-- The opening trigger must bypass the ordinary movement stock-update trigger.
+create or replace function public.apply_inventory_movement() returns trigger language plpgsql as $$
+begin
+  if new.movement_type = 'opening' then
+    return new;
+  end if;
+  update public.inventory_items set quantity=quantity+new.quantity_delta,updated_at=now()
+  where id=new.item_id and shop_id=new.shop_id and quantity+new.quantity_delta>=0;
+  if not found then raise exception 'Insufficient stock or item not found in studio'; end if;
+  return new;
+end $$;
+drop trigger if exists inventory_opening_balance on public.inventory_items;
+create trigger inventory_opening_balance after insert on public.inventory_items
+for each row execute function public.record_inventory_opening_balance();
