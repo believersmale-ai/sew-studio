@@ -321,6 +321,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { enabled, error: menuSettingsError, load: loadMenuSettings } = useMenuSettings();
   const [moreOpen, setMoreOpen] = useState(false);
   const [moreSearch, setMoreSearch] = useState("");
+  const moreSearchRef = useRef<HTMLInputElement>(null);
   const moreDialogRef = useRef<HTMLDivElement>(null);
   const moreTriggerRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -328,6 +329,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const dialog = moreDialogRef.current;
+    moreSearchRef.current?.focus();
     const focusables = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), a[href], select:not([disabled]), [tabindex]:not([tabindex="-1"])'
     ) ?? []).filter(el => el.getClientRects().length > 0);
@@ -339,7 +341,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       const first = elements[0], last = elements[elements.length - 1];
       if (event.shiftKey && (document.activeElement === first || document.activeElement === dialog)) {
         event.preventDefault(); last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && (document.activeElement === last || !dialog?.contains(document.activeElement))) {
         event.preventDefault(); first.focus();
       }
     };
@@ -754,16 +756,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {moreItems.length > 0 && (
             <button
               ref={moreTriggerRef}
+              aria-label="More tools"
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               onClick={() => setMoreOpen(true)}
               className="flex flex-col items-center justify-center gap-0.5 px-1 py-1.5 h-full min-w-0 flex-1"
             >
               <MoreHorizontal
-                className={cn("w-5 h-5 shrink-0", moreOpen ? "text-[#800020]" : "text-stone-400")}
+                className={cn("w-5 h-5 shrink-0", moreOpen || moreItems.some(item => isActive(item.to)) ? "text-[#800020]" : "text-stone-400")}
                 strokeWidth={1.5}
               />
-              <span className="text-[11px] leading-tight text-stone-400">More</span>
+              <span className={cn("text-[11px] leading-tight", moreOpen || moreItems.some(item => isActive(item.to)) ? "font-semibold text-[#800020]" : "text-stone-400")}>More</span>
             </button>
           )}
         </div>
@@ -784,7 +787,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </div>
               <label className="flex h-10 items-center gap-2 rounded-lg border border-[#EEDFE3] bg-[#FCFAFA] px-3 focus-within:border-[#800020]">
                 <Search className="size-4 shrink-0 text-stone-400" aria-hidden="true" />
-                <input autoFocus aria-label="Search tools" type="search" value={moreSearch}
+                <input ref={moreSearchRef} aria-label="Search tools" type="search" value={moreSearch}
                   onChange={(e) => setMoreSearch(e.target.value)} placeholder="Search tools..."
                   className="min-w-0 flex-1 bg-transparent text-sm text-[#2F151B] outline-none placeholder:text-stone-400" />
               </label>
