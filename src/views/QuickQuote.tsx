@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Zap, ShoppingBag, TrendingUp, Save } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -120,6 +120,9 @@ const EMBELLISHMENT_COST: Record<Embellishment, number> = {
   "Hand-painted": 350,
 };
 
+type CostItem = { id: string; name: string; quantity: number; unitCost: number };
+type Extra = { id: string; name: string; price: number; cost: number; accepted: boolean };
+const id = () => Math.random().toString(36).slice(2);
 export default function QuickQuote() {
   const go = useNav((s) => s.go);
 
@@ -129,6 +132,50 @@ export default function QuickQuote() {
   const [complexity, setComplexity] = useState<Complexity>("Moderate");
   const [embellishment, setEmbellishment] = useState<Embellishment>("None");
   const [rush, setRush] = useState<boolean>(false);
+  const [wastagePct, setWastagePct] = useState(0);
+  const [otherCosts, setOtherCosts] = useState(0);
+  const [items, setItems] = useState<CostItem[]>([]);
+  const [extras, setExtras] = useState<Extra[]>([]);
+  const [itemName, setItemName] = useState("");
+  const [itemQty, setItemQty] = useState(1);
+  const [itemCost, setItemCost] = useState(0);
+  const [extraName, setExtraName] = useState("");
+  const [extraPrice, setExtraPrice] = useState(0);
+  const [extraCost, setExtraCost] = useState(0);
+  const [clientFabric, setClientFabric] = useState(false);
+  const [handlingCost, setHandlingCost] = useState(0);
+  const [itemPresets, setItemPresets] = useState<{name:string;unitCost:number}[]>([]);
+  const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>([]);
+  const shopName = useAuth(a => a.user?.shop?.name);
+  useEffect(() => {
+    if (!shopName) return;
+    try {
+      const value = JSON.parse(localStorage.getItem("sewsiness-quote-presets:" + shopName) || "{}");
+      if (Array.isArray(value.items)) setItemPresets(value.items.filter((x: {name?:unknown;unitCost?:unknown}) => typeof x.name === "string" && typeof x.unitCost === "number").slice(0,100));
+      if (Array.isArray(value.extras)) setExtraPresets(value.extras.filter((x: {name?:unknown;price?:unknown;cost?:unknown}) => typeof x.name === "string" && typeof x.price === "number" && typeof x.cost === "number").slice(0,100));
+    } catch { /* Invalid optional local presets do not prevent quoting. */ }
+  }, [shopName]);
+  const savePresets = (savedItems: typeof itemPresets, savedExtras: typeof extraPresets) => {
+    if (!shopName) return;
+    try { localStorage.setItem("sewsiness-quote-presets:" + shopName, JSON.stringify({items:savedItems,extras:savedExtras})); }
+    catch { toast.error("Could not save suggestions on this device."); }
+  };
+  const addItem = () => {
+    if (!itemName.trim()) { toast.error("Enter an item name."); return; }
+    setItems(v => [...v, {id:id(),name:itemName.trim(),quantity:Math.max(0,itemQty),unitCost:Math.max(0,itemCost)}]);
+    const saved = [...itemPresets.filter(x => x.name.toLowerCase() !== itemName.trim().toLowerCase()),{name:itemName.trim(),unitCost:Math.max(0,itemCost)}];
+    setItemPresets(saved); savePresets(saved,extraPresets); setItemName(""); setItemQty(1); setItemCost(0);
+  };
+  const addExtra = () => {
+    if (!extraName.trim()) { toast.error("Enter an extra name."); return; }
+    setExtras(v => [...v,{id:id(),name:extraName.trim(),price:Math.max(0,extraPrice),cost:Math.max(0,extraCost),accepted:true}]);
+    const saved = [...extraPresets.filter(x => x.name.toLowerCase() !== extraName.trim().toLowerCase()),{name:extraName.trim(),price:Math.max(0,extraPrice),cost:Math.max(0,extraCost)}];
+    setExtraPresets(saved); savePresets(itemPresets,saved); setExtraName(""); setExtraPrice(0); setExtraCost(0);
+  };
+  const [markupOverride, setMarkupOverride] = useState<number | null>(null);
+  const [finalOverride, setFinalOverride] = useState<number | null>(null);
+  const [discountPct, setDiscountPct] = useState(0);
+  const [depositOverride, setDepositOverride] = useState<number | null>(null);
 
   const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const calc = useMemo(() => {
@@ -136,17 +183,27 @@ export default function QuickQuote() {
       FABRICS.find((f) => f.label === fabric)?.basePerYard ?? 150;
     const safeYards = Math.max(0, Number(yards) || 0);
 
-    const fabricCost = fabricBase * safeYards;
+    const fabricCost = clientFabric ? 0 : fabricBase * safeYards;
     const labourBase = LABOUR_BASE[garment] ?? 500;
     const labour = Math.round(labourBase * COMPLEXITY_MULTIPLIER[complexity]);
     const embellishmentCost = EMBELLISHMENT_COST[embellishment];
     const subtotal = fabricCost + labour + embellishmentCost;
     const rushPremium = rush ? Math.round(subtotal * 0.25) : 0;
-    const overhead = orderOverheadMargin({ fabricCost }, pricingSettings);
-    const trueCost = fabricCost + labour + embellishmentCost + overhead;
-    const markup = defaultMarkupPercent(pricingSettings);
-    const total = Math.round(trueCost * (1 + markup / 100) + rushPremium);
-    const suggestedDeposit = Math.round(total * (pricingSettings?.depositPercent ?? 50) / 100);
+    const wastage = fabricCost * Math.max(0, wastagePct) / 100;
+    const overhead = orderOverheadMargin({ fabricCost: fabricCost + wastage }, pricingSettings);
+    const itemTotal = items.reduce((sum,x) => sum + x.quantity * x.unitCost, 0);
+    const acceptedExtras = extras.filter(x => x.accepted);
+    const extrasCost = acceptedExtras.reduce((sum,x) => sum + x.cost, 0);
+    const extrasPrice = acceptedExtras.reduce((sum,x) => sum + x.price, 0);
+    const trueCost = fabricCost + wastage + labour + embellishmentCost + Math.max(0, otherCosts) + itemTotal + (clientFabric ? Math.max(0,handlingCost) : 0) + extrasCost + overhead;
+    const markup = markupOverride ?? defaultMarkupPercent(pricingSettings);
+    const recommendedBase = Math.round((trueCost - extrasCost) * (1 + Math.max(0,markup) / 100) + rushPremium);
+    const recommendedPrice = recommendedBase + extrasPrice;
+    const finalPrice = (finalOverride ?? recommendedBase) + extrasPrice;
+    const discount = finalPrice * Math.min(100, Math.max(0, discountPct)) / 100;
+    const total = Math.max(0, finalPrice - discount);
+    const depositPct = depositOverride ?? pricingSettings?.depositPercent ?? 50;
+    const suggestedDeposit = Math.round(total * Math.min(100, Math.max(0, depositPct)) / 100);
 
     // Profit deducts all known production costs, including labour and allocated overhead.
     const estMargin = total - trueCost;
@@ -168,11 +225,18 @@ export default function QuickQuote() {
       trueCost,
       overhead,
       markup,
+      wastage,
+      recommendedPrice,
+      finalPrice,
+      discount,
+      depositPct,
+      itemTotal,
+      extrasCost,
+      extrasPrice,
     };
-  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings]);
+  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost]);
 
   const qc = useQueryClient();
-  const shopName = useAuth((a) => a.user?.shop?.name);
   const [quoteCustomerId, setQuoteCustomerId] = useState("");
   const [validDays, setValidDays] = useState("14");
   const { data: customers = [] } = useQuery<Customer[]>({
@@ -190,7 +254,7 @@ export default function QuickQuote() {
         total: calc.total,
         deposit: calc.suggestedDeposit,
         validUntil: until,
-        inputs: { garment, fabric, yards, complexity, embellishment, rush },
+        inputs: { garment, fabric, yards, complexity, embellishment, rush, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Quote saved"); },
@@ -324,6 +388,30 @@ export default function QuickQuote() {
             </Select>
           </div>
 
+          <div className="flex items-center justify-between gap-3"><div><Label htmlFor="qq-client-fabric">Client's own fabric</Label><p className="text-xs text-stone-500">Fabric cost becomes zero.</p></div><Switch id="qq-client-fabric" checked={clientFabric} onCheckedChange={setClientFabric} /></div>
+          {clientFabric && <div className="grid gap-1"><Label htmlFor="qq-handling">Handling allowance (GHS)</Label><Input id="qq-handling" type="number" min={0} value={handlingCost} onChange={e => setHandlingCost(Math.max(0,Number(e.target.value)||0))} /></div>}
+          <Separator />
+          <div className="grid gap-2">
+            <h3 className="font-semibold">Other production items</h3>
+            <p className="text-xs text-stone-500">Saved suggestions are stored on this device.</p>
+            <select aria-label="Saved production items" className="w-full border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a saved item…</option>{itemPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</select>
+            <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
+            <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
+            <button type="button" onClick={addItem} className="rounded-md border p-2 font-medium">+ Add item</button>
+            {items.map(x=><div key={x.id} className="flex justify-between gap-2 text-sm"><span>{x.name} × {x.quantity} · {formatCurrency(x.quantity*x.unitCost)}</span><button type="button" className="text-red-700 underline" onClick={()=>setItems(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
+          </div>
+          <Separator />
+          <div className="grid gap-2">
+            <h3 className="font-semibold">Optional extras</h3>
+            <p className="text-xs text-stone-500">Only accepted extras affect the total and profit. Client acceptance is recorded by the owner.</p>
+            <select aria-label="Saved extras" className="w-full border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose a saved extra…</option>{extraPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</select>
+            <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
+            <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
+            <button type="button" onClick={addExtra} className="rounded-md border p-2 font-medium">+ Add extra</button>
+            {extras.map(x=><div key={x.id} className="flex justify-between gap-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={x.accepted} onChange={e=>setExtras(v=>v.map(y=>y.id===x.id?{...y,accepted:e.target.checked}:y))} />{x.name} · {formatCurrency(x.price)}</label><button type="button" className="text-red-700 underline" onClick={()=>setExtras(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
+          </div>
+          <Separator />
+
           <Separator />
 
           <div className="flex items-center justify-between gap-3">
@@ -362,12 +450,19 @@ export default function QuickQuote() {
               />
             )}
 
+            <LineItem label={`Material wastage (${wastagePct}%)`} value={calc.wastage} />
+            <LineItem label="Other production costs (manual)" value={otherCosts} />
+            {items.map(x => <LineItem key={x.id} label={x.name + " × " + x.quantity} value={x.quantity * x.unitCost} />)}
+            {clientFabric && <LineItem label="Client fabric handling" value={handlingCost} />}
+            {extras.filter(x => x.accepted).map(x => <LineItem key={x.id} label={"Extra cost · " + x.name} value={x.cost} />)}
             <LineItem label="Allocated overhead" value={calc.overhead} />
             <LineItem label="TRUE COST" value={calc.trueCost} emphasized />
+            <p className="text-xs text-stone-500">Labour is included in True Cost. Overhead follows studio settings.</p>
             <LineItem label={`Settings mark-up (${calc.markup}%)`} value={calc.trueCost * calc.markup / 100} />
             <Separator />
 
-            <LineItem label="Subtotal" value={calc.subtotal} emphasized />
+            {extras.filter(x => x.accepted).map(x => <LineItem key={x.id} label={"Accepted extra · " + x.name} value={x.price} />)}
+            <LineItem label="Recommended selling price" value={calc.recommendedPrice} emphasized />
 
             {rush && (
               <LineItem
@@ -377,11 +472,20 @@ export default function QuickQuote() {
               />
             )}
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1"><Label htmlFor="qq-wastage">Wastage %</Label><Input id="qq-wastage" type="number" min={0} value={wastagePct} onChange={e => setWastagePct(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-other">Other costs (GHS)</Label><Input id="qq-other" type="number" min={0} value={otherCosts} onChange={e => setOtherCosts(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-markup">Mark-up %</Label><Input id="qq-markup" type="number" min={0} value={calc.markup} onChange={e => setMarkupOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-deposit">Deposit %</Label><Input id="qq-deposit" type="number" min={0} max={100} value={calc.depositPct} onChange={e => setDepositOverride(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-final">Base final price (GHS, excluding extras)</Label><Input id="qq-final" type="number" min={0} value={calc.finalPrice - calc.extrasPrice} onChange={e => setFinalOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-discount">Discount %</Label><Input id="qq-discount" type="number" min={0} max={100} value={discountPct} onChange={e => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
+            </div>
+            {calc.discount > 0 && <LineItem label="Discount" value={-calc.discount} />}
             <Separator />
 
             <div className="mt-1 p-4 rounded-md border border-[#800020]/15 bg-gradient-to-br from-[#800020]/5 to-transparent">
               <p className="text-[11px] uppercase tracking-[0.22em] text-[#800020]">
-                Total
+                Final price after discount
               </p>
               <p
                 className="font-display font-semibold text-[#800020] leading-tight tabular-nums"
@@ -390,7 +494,7 @@ export default function QuickQuote() {
                 <AnimatedNumber value={calc.total} format="currency" />
               </p>
               <div className="mt-2 flex items-center justify-between text-xs text-stone-500">
-                <span>{pricingSettings?.depositPercent ?? 50}% deposit</span>
+                <span>{calc.depositPct}% deposit</span>
                 <span className="font-medium text-[#2F151B] tabular-nums">
                   {formatCurrency(calc.suggestedDeposit)}
                 </span>
@@ -407,6 +511,8 @@ export default function QuickQuote() {
               </span>
             </div>
 
+            {calc.estMargin < 0 && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">Warning: final price is below True Cost. This quote makes a loss.</p>}
+            {calc.estMargin >= 0 && calc.estMarginPct < 10 && <p role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">Low profit margin: consider reviewing the selling price.</p>}
             <PremiumButton
               onClick={handleConvert}
               size="md"
