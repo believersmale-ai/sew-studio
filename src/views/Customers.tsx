@@ -203,7 +203,7 @@ export default function Customers() {
   };
 
   return (
-    <div className="p-5 md:p-8 max-w-[1200px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1200px] mx-auto w-full">
       <PageHeader
         eyebrow={scopeToMine ? "My clients" : "Client roster"}
         eyebrowIcon={Users}
