@@ -274,6 +274,7 @@ export interface Settings {
   overheadRecoveryBasis?: number;
   /** Default mark-up % on True Cost, pre-filled when pricing an order. */
   defaultMarkupPercent?: number;
+  defaultWastagePercent?: number;
 }
 
 export interface Freelancer {
