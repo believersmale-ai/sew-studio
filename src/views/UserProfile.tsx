@@ -184,7 +184,7 @@ export default function UserProfile() {
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em] text-stone-400">Account</p>
-              <h1 className="font-display text-2xl font-semibold text-[#2F151B]">Profile</h1>
+              <h2 className="font-display text-2xl font-semibold text-[#2F151B]">Profile</h2>
             </div>
           </div>
           <SectionCard title="Profile unavailable">
@@ -227,7 +227,7 @@ export default function UserProfile() {
                 <p className="text-[11px] uppercase tracking-[0.18em] text-stone-400 mb-1">
                   {isSelf ? "My profile" : "Team profile"}
                 </p>
-                <h1 className="font-display text-2xl font-semibold text-[#2F151B] truncate">{profile.fullName}</h1>
+                <h2 className="font-display text-2xl font-semibold text-[#2F151B] truncate">{profile.fullName}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span
                     className="rounded-full border px-3 py-1 text-xs font-medium"
