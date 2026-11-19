@@ -13,7 +13,8 @@ import { SectionCard } from "@/components/atelier/SectionCard";
 import { EmptyState } from "@/components/atelier/EmptyState";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
 
-type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number };
+type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number; supplierName?: string; receiptReference?: string; receiptImageUrl?: string };
+type Supplier = { id: string; name: string; phone: string | null; location: string | null; notes: string | null };
 type Trip = { id: string; tripDate: string; status: "Planned" | "Logged"; notes: string; items: Item[] };
 
 const field = "h-10 rounded-lg border border-[#D2B9BF] bg-white px-3 text-sm outline-none focus:border-[#650019] focus:ring-4 focus:ring-[#650019]/10";
@@ -26,6 +27,18 @@ export default function AccraRuns() {
   const { data: trips, isLoading } = useQuery<Trip[]>({ queryKey: ["accra-runs"], queryFn: () => apiGet<Trip[]>("/api/accra-runs") });
   const { data: settings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const currency = settings?.currency || "GHS";
+  const {data: suppliers = []} = useQuery<Supplier[]>({queryKey:["market-run-suppliers"],queryFn:()=>apiGet<Supplier[]>("/api/market-run-suppliers")});
+  const [supplierName,setSupplierName] = useState("");
+  const [supplierPhone,setSupplierPhone] = useState("");
+  const [supplierLocation,setSupplierLocation] = useState("");
+  const [showSuppliers,setShowSuppliers] = useState(false);
+  const [editingSupplier,setEditingSupplier] = useState<string | null>(null);
+  const [editName,setEditName] = useState("");
+  const [editPhone,setEditPhone] = useState("");
+  const [editLocation,setEditLocation] = useState("");
+  const saveSupplier = useMutation({mutationFn:()=>apiPatch(`/api/market-run-suppliers/${editingSupplier}`,{name:editName,phone:editPhone,location:editLocation}),onSuccess:()=>{setEditingSupplier(null);toast.success("Supplier updated");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
+  const supplierHistory = (name:string) => (trips??[]).flatMap(t=>t.items.filter(i=>i.supplierName?.trim().toLocaleLowerCase()===name.trim().toLocaleLowerCase()).map(i=>({date:t.tripDate,description:i.description,amount:i.actualCost,planned:i.plannedCost}))).sort((a,b)=>b.date.localeCompare(a.date));
+  const addSupplier = useMutation({mutationFn:()=>apiPost("/api/market-run-suppliers",{name:supplierName,phone:supplierPhone,location:supplierLocation}),onSuccess:()=>{setSupplierName("");setSupplierPhone("");setSupplierLocation("");toast.success("Supplier saved");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
   const refresh = () => qc.invalidateQueries({ queryKey: ["accra-runs"] });
   const onError = (e: Error) => toast.error(e.message);
 
@@ -36,7 +49,7 @@ export default function AccraRuns() {
   const spentTotal = visibleTrips.reduce((sum,t) => sum + t.items.reduce((n,i)=>n+i.actualCost,0),0);
   const exportCsv = () => {
     const escape = (v: string | number) => '"' + String(v).replaceAll('"','""') + '"';
-    const rows = [["Trip date","Status","Notes","Item","Obtained","Planned cost","Actual cost"],...visibleTrips.flatMap(t => t.items.length ? t.items.map(i => [t.tripDate,t.status,t.notes ?? "",i.description,i.obtained ? "Yes" : "No",i.plannedCost,i.actualCost]) : [[t.tripDate,t.status,t.notes ?? "","","",0,0]])];
+    const rows = [["Trip date","Status","Notes","Item","Supplier","Receipt reference","Obtained","Planned cost","Actual cost"],...visibleTrips.flatMap(t => t.items.length ? t.items.map(i => [t.tripDate,t.status,t.notes ?? "",i.description,i.supplierName ?? "",i.receiptReference ?? "",i.obtained ? "Yes" : "No",i.plannedCost,i.actualCost]) : [[t.tripDate,t.status,t.notes ?? "","","","","",0,0]])];
     const csv = "\uFEFF" + rows.map(row => row.map(escape).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
     const link = document.createElement("a"); link.href=url; link.download="sewsiness-market-runs.csv"; document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
@@ -52,6 +65,33 @@ export default function AccraRuns() {
           <PremiumButton onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan a trip</PremiumButton>
         </div>
       )}
+      <SectionCard title="Supplier directory" action={<PremiumButton size="sm" variant="outline" onClick={()=>setShowSuppliers(v=>!v)}>{showSuppliers?"Hide suppliers":"Manage suppliers"}</PremiumButton>}>
+        {showSuppliers && <div className="p-4 space-y-3">
+          {canEdit && <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();if(supplierName.trim())addSupplier.mutate();}}>
+            <input required maxLength={150} aria-label="Supplier name" placeholder="Supplier name" value={supplierName} onChange={e=>setSupplierName(e.target.value)} className={`${field} flex-1 min-w-36`}/>
+            <input maxLength={80} aria-label="Supplier phone" placeholder="Phone" value={supplierPhone} onChange={e=>setSupplierPhone(e.target.value)} className={`${field} w-36`}/>
+            <input maxLength={200} aria-label="Supplier location" placeholder="Market / location" value={supplierLocation} onChange={e=>setSupplierLocation(e.target.value)} className={`${field} w-40`}/>
+            <PremiumButton type="submit" disabled={addSupplier.isPending}><Plus className="size-4"/> Save supplier</PremiumButton>
+          </form>}
+          <div className="divide-y divide-[#EEDFE3]">{suppliers.map(x=>{
+            const history=supplierHistory(x.name);const total=history.reduce((n,i)=>n+i.amount,0);
+            return <div key={x.id} className="space-y-2 py-3 text-sm">
+              {editingSupplier===x.id ? <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();saveSupplier.mutate();}}>
+                <input required maxLength={150} aria-label="Edit supplier name" className={field} value={editName} onChange={e=>setEditName(e.target.value)}/>
+                <input maxLength={80} aria-label="Edit supplier phone" className={field} value={editPhone} onChange={e=>setEditPhone(e.target.value)}/>
+                <input maxLength={200} aria-label="Edit supplier location" className={field} value={editLocation} onChange={e=>setEditLocation(e.target.value)}/>
+                <PremiumButton type="submit" size="sm" disabled={saveSupplier.isPending}>Save</PremiumButton>
+                <PremiumButton type="button" variant="outline" size="sm" onClick={()=>setEditingSupplier(null)}>Cancel</PremiumButton>
+              </form> : <div className="flex flex-wrap justify-between gap-2">
+                <div><span className="font-medium">{x.name}</span><span className="ml-2 text-stone-500">{[x.phone,x.location].filter(Boolean).join(" · ")}</span></div>
+                {canEdit && <PremiumButton size="sm" variant="outline" onClick={()=>{setEditingSupplier(x.id);setEditName(x.name);setEditPhone(x.phone??"");setEditLocation(x.location??"");}}>Edit</PremiumButton>}
+              </div>}
+              <p className="text-xs text-stone-500">{history.length} purchases · {formatCurrency(total,currency)} spent</p>
+              {history.length>0 && <details><summary className="cursor-pointer text-xs text-[#650019]">Purchase history</summary><ul className="mt-2 space-y-1">{history.map((h,index)=><li key={index} className="flex flex-wrap justify-between gap-2 text-xs text-stone-600"><span>{formatDate(h.date)} · {h.description}</span><span>{formatCurrency(h.amount,currency)} spent / {formatCurrency(h.planned,currency)} planned</span></li>)}</ul></details>}
+            </div>;
+          })}{suppliers.length===0 && <p className="text-sm text-stone-500">No suppliers saved yet.</p>}</div>
+        </div>}
+      </SectionCard>
       {!isLoading && !!trips?.length && <div className="mb-5 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-xl border border-[#EEDFE3] bg-white p-4"><p className="text-xs text-stone-500">Planned purchases</p><p className="text-xl font-semibold tabular-nums">{formatCurrency(plannedTotal,currency)}</p></div>
@@ -66,21 +106,39 @@ export default function AccraRuns() {
       {isLoading ? <p className="text-sm text-stone-400">Loading…</p> : !trips?.length ? (
         <SectionCard><EmptyState icon={Truck} title="No trips yet" description="Plan your next trip to the market, then list what you need to buy." action={canEdit ? <PremiumButton size="sm" onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan your first trip</PremiumButton> : undefined} /></SectionCard>
       ) : visibleTrips.length === 0 ? <SectionCard><p className="p-4 text-sm text-stone-500">No {filter.toLowerCase()} trips match this filter.</p></SectionCard> : (
-        <div className="space-y-5">{visibleTrips.map((t) => <TripCard key={t.id} trip={t} currency={currency} canEdit={canEdit} onChange={refresh} onError={onError} />)}</div>
+        <div className="space-y-5">{visibleTrips.map((t) => <TripCard key={t.id} trip={t} currency={currency} canEdit={canEdit} suppliers={suppliers} onChange={refresh} onError={onError} />)}</div>
       )}
     </div>
   );
 }
 
-function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; currency: string; canEdit: boolean; onChange: () => void; onError: (e: Error) => void }) {
+function TripCard({ trip, currency, canEdit, suppliers, onChange, onError }: { trip: Trip; currency: string; canEdit: boolean; suppliers: Supplier[]; onChange: () => void; onError: (e: Error) => void }) {
   const [desc, setDesc] = useState("");
   const [cost, setCost] = useState("");
   const [notes, setNotes] = useState(trip.notes ?? "");
+  const [supplier, setSupplier] = useState("");
+  const [receipt, setReceipt] = useState("");
+  const [uploadingItem, setUploadingItem] = useState<string | null>(null);
+  const uploadReceipt = async (itemId: string, file?: File) => {
+    if (!file) return;
+    if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type) || file.size > 5 * 1024 * 1024) { toast.error("Choose a JPG, PNG, WebP or GIF under 5 MB."); return; }
+    setUploadingItem(itemId);
+    try {
+      const form = new FormData(); form.append("file", file);
+      const response = await fetch("/api/uploads?kind=general", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok || typeof result.url !== "string") throw new Error(result.error || "Upload failed");
+      await apiPatch(`${base}/items/${itemId}`, { receiptImageUrl: result.url });
+      toast.success("Receipt image attached");
+      onChange();
+    } catch (e) { onError(e instanceof Error ? e : new Error("Receipt upload failed")); }
+    finally { setUploadingItem(null); }
+  };
   const planned = trip.items.reduce((n, i) => n + i.plannedCost, 0);
   const actual = trip.items.reduce((n, i) => n + i.actualCost, 0);
   const done = trip.items.filter((i) => i.obtained).length;
   const base = `/api/accra-runs/${trip.id}`;
-  const addItem = useMutation({ mutationFn: () => apiPost(`${base}/items`, { description: desc, plannedCost: Number(cost) || 0 }), onSuccess: () => { setDesc(""); setCost(""); onChange(); }, onError });
+  const addItem = useMutation({ mutationFn: () => apiPost(`${base}/items`, { description: desc, plannedCost: Number(cost) || 0, supplierName: supplier, receiptReference: receipt }), onSuccess: () => { setDesc(""); setCost(""); setSupplier(""); setReceipt(""); onChange(); }, onError });
   const patchItem = useMutation({ mutationFn: ({ id, body }: { id: string; body: object }) => apiPatch(`${base}/items/${id}`, body), onSuccess: onChange, onError });
   const delItem = useMutation({ mutationFn: (id: string) => api(`${base}/items/${id}`, { method: "DELETE" }), onSuccess: onChange, onError });
   const patchTrip = useMutation({ mutationFn: (body: object) => apiPatch(base, body), onSuccess: onChange, onError });
@@ -108,7 +166,16 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
             <button type="button" disabled={!canEdit} aria-label={i.obtained ? "Mark not got" : "Mark as got"} onClick={() => patchItem.mutate({ id: i.id, body: { obtained: !i.obtained } })}
               className={`grid size-6 place-items-center rounded-md border ${i.obtained ? "border-[#650019] bg-[#650019] text-white" : "border-[#D2B9BF] bg-white"}`}>{i.obtained && <Check className="size-4" />}</button>
             <span className={`min-w-0 flex-1 text-sm ${i.obtained ? "text-stone-400 line-through" : "text-[#2F151B]"}`}>{i.description}</span>
-            <span className="text-xs text-stone-500">plan {formatCurrency(i.plannedCost, currency)}</span>
+            <div className="flex flex-col gap-1 text-xs text-stone-500">
+              <span>plan {formatCurrency(i.plannedCost, currency)}</span>
+              <input key={i.id + "-supplier"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.supplierName ?? ""} placeholder="Supplier" aria-label="Supplier name" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.supplierName??""))patchItem.mutate({id:i.id,body:{supplierName:v}});}} className={`${field} h-8 w-36`} />
+              {i.receiptImageUrl && <a href={i.receiptImageUrl} target="_blank" rel="noopener noreferrer" className="text-[#650019] underline">View receipt image</a>}
+              {canEdit && <label className="cursor-pointer text-[#650019] underline">
+                {uploadingItem === i.id ? "Uploading…" : i.receiptImageUrl ? "Replace receipt image" : "Attach receipt image"}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploadingItem !== null} onChange={e=>{void uploadReceipt(i.id,e.target.files?.[0]);e.target.value="";}} />
+              </label>}
+              <input key={i.id + "-receipt"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.receiptReference ?? ""} placeholder="Receipt reference" aria-label="Receipt reference" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.receiptReference??""))patchItem.mutate({id:i.id,body:{receiptReference:v}});}} className={`${field} h-8 w-36`} />
+            </div>
             <input key={i.actualCost} type="number" min={0} step="0.01" disabled={!canEdit} defaultValue={i.actualCost || ""} placeholder="Spent" aria-label="Amount spent"
               onBlur={(e) => { const v = Number(e.target.value) || 0; if (v !== i.actualCost) patchItem.mutate({ id: i.id, body: { actualCost: v } }); }} className={`${field} h-8 w-24 text-right`} />
             {canEdit && <button type="button" aria-label="Remove item" onClick={() => delItem.mutate(i.id)} className="text-stone-400 hover:text-red-700"><Trash2 className="size-4" /></button>}
@@ -120,6 +187,9 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
         <form className="flex flex-wrap gap-2 border-t border-[#EEDFE3] p-4" onSubmit={(e) => { e.preventDefault(); if (desc.trim()) addItem.mutate(); }}>
           <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What to buy (e.g. 6 yards lace)" maxLength={200} className={`${field} min-w-0 flex-1`} />
           <input type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Planned cost" className={`${field} w-32`} />
+          <input list={`market-suppliers-${trip.id}`} value={supplier} onChange={e=>setSupplier(e.target.value)} maxLength={200} placeholder="Supplier (optional)" aria-label="Supplier for new item" className={`${field} w-40`} />
+          <datalist id={`market-suppliers-${trip.id}`}>{suppliers.map(x=><option key={x.id} value={x.name}/>)}</datalist>
+          <input value={receipt} onChange={e=>setReceipt(e.target.value)} maxLength={200} placeholder="Receipt reference" aria-label="Receipt for new item" className={`${field} w-40`} />
           <PremiumButton type="submit" size="md" disabled={addItem.isPending}><Plus className="size-4" /> Add</PremiumButton>
         </form>
       )}

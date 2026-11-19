@@ -34,7 +34,7 @@ import { StatusBadge } from "@/components/atelier/StatusBadge";
  */
 export default function TrueCosting() {
   const { go } = useNav();
-  const { canSeeBusiness } = useRole();
+  const { canSeeBusiness, isOwner } = useRole();
   const canSee = canSeeBusiness();
 
   const { data: orders, isLoading } = useQuery<Order[]>({
@@ -48,6 +48,10 @@ export default function TrueCosting() {
     enabled: canSee,
   });
   const currency = settings?.currency || "GHS";
+
+  const {data:accuracy} = useQuery<{total:number;accurate:number;accuracyPercent:number|null;trend:{month:string;total:number;accurate:number;accuracyPercent:number;profit:number}[];rows:{orderId:string;garment:string;date:string;estimatedCost:number;actualCost:number;estimatedProfit:number;actualProfit:number}[]}>({
+    queryKey:["costing-accuracy"],queryFn:()=>apiGet("/api/costing/accuracy"),enabled:canSee && isOwner(),
+  });
 
   const rows = useMemo(() => {
     return (orders || [])
@@ -69,6 +73,8 @@ export default function TrueCosting() {
           diff: price - suggested,
           achieved: markupAchieved(price, trueCost),
           belowCost: price < trueCost,
+          profit: price - trueCost,
+          margin: price > 0 ? ((price - trueCost) / price) * 100 : null,
         };
       })
       .sort((a, b) => new Date(b.order.orderDate).getTime() - new Date(a.order.orderDate).getTime());
@@ -94,6 +100,9 @@ export default function TrueCosting() {
   const belowCostCount = rows.filter((r) => r.belowCost).length;
   const totalCost = rows.reduce((s, r) => s + r.trueCost, 0);
   const totalPrice = rows.reduce((s, r) => s + r.price, 0);
+  const profitableCount = rows.filter(r=>r.profit>0).length;
+  const lossCount = rows.filter(r=>r.profit<0).length;
+  const netEstimatedProfit = rows.reduce((sum,r)=>sum+r.profit,0);
   const blended = totalCost > 0 ? (totalPrice / totalCost - 1) * 100 : null;
 
   return (
@@ -102,7 +111,7 @@ export default function TrueCosting() {
         eyebrow="Pricing"
         eyebrowIcon={Calculator}
         title="True Costing"
-        subtitle="Price every order from what it really costs: materials, labour, other costs and your studio overhead, plus a mark-up."
+        subtitle="Compare each order’s current selling price with recorded costs, allocated overhead and estimated profit or loss."
         actions={
           <div className="flex flex-wrap gap-2">
             <PremiumButton variant="outline" size="md" onClick={() => go("settings")}>
@@ -136,7 +145,26 @@ export default function TrueCosting() {
         />
       </div>
 
-      <SectionCard title="Orders: cost vs price">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <Tile icon={Coins} label="Estimated order profit" value={formatCurrency(netEstimatedProfit,currency)} note="Selling prices less entered production costs and allocated overhead." warn={netEstimatedProfit<0}/>
+        <Tile icon={TrendingUp} label="Orders in profit" value={String(profitableCount)} note="Based on currently recorded costs and prices."/>
+        <Tile icon={Calculator} label="Orders at a loss" value={String(lossCount)} note="Review pricing and any missing costs." warn={lossCount>0}/>
+      </div>
+      {isOwner() && <SectionCard title="Completed orders · actual profit and quote accuracy">
+        <div className="p-5 space-y-4">
+          <div className="flex flex-wrap items-baseline gap-3"><strong className="text-2xl text-[#800020]">{accuracy?.accuracyPercent==null?"—":`${accuracy.accuracyPercent}%`}</strong><span className="text-sm text-stone-600">of reconciled orders were within 10% of their original estimated cost ({accuracy?.accurate??0} of {accuracy?.total??0})</span></div>
+          {!!accuracy?.trend.length && <div className="space-y-2">
+            <h3 className="text-sm font-semibold text-[#35121d]">Quote accuracy over time</h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{accuracy.trend.map(month=><div key={month.month} className="rounded-xl border border-[#EADDE0] p-3">
+              <p className="text-xs font-semibold text-stone-500">{month.month} · {month.total} reconciled</p>
+              <p className="mt-1 text-xl font-semibold text-[#800020]">{month.accuracyPercent}% within 10%</p>
+              <p className="mt-1 text-xs text-stone-600">Final profit: {formatCurrency(month.profit,currency)}</p>
+            </div>)}</div>
+          </div>}
+          {accuracy?.rows.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left"><th className="py-2 pr-4">Completed garment</th><th className="py-2 pr-4 text-right">Estimated profit</th><th className="py-2 pr-4 text-right">Final profit / loss</th></tr></thead><tbody>{accuracy.rows.map(x=><tr key={x.orderId} className="border-t border-[#EEDFE3] cursor-pointer" onClick={()=>go("order",{id:x.orderId})}><td className="py-3 pr-4">{x.garment}<span className="block text-xs text-stone-500">{formatDate(x.date)}</span></td><td className="py-3 pr-4 text-right tabular-nums">{formatCurrency(x.estimatedProfit,currency)}</td><td className={cn("py-3 pr-4 text-right tabular-nums font-semibold",x.actualProfit<0?"text-red-700":"text-emerald-700")}>{formatCurrency(x.actualProfit,currency)}</td></tr>)}</tbody></table></div>:<p className="text-sm text-stone-500">No completed orders with confirmed actual costs yet. Reconcile a completed order to see final profit and quote accuracy here.</p>}
+        </div>
+      </SectionCard>}
+      <SectionCard title="Orders: cost vs price and estimated profit">
         {isLoading ? (
           <p className="p-6 text-sm text-stone-400">Loading…</p>
         ) : rows.length === 0 ? (
@@ -159,6 +187,8 @@ export default function TrueCosting() {
                   <th className="px-4 py-2.5 text-right">True cost</th>
                   <th className="px-4 py-2.5 text-right">Suggested</th>
                   <th className="px-4 py-2.5 text-right">Final price</th>
+                  <th className="px-4 py-2.5 text-right">Profit / loss</th>
+                  <th className="px-4 py-2.5 text-right">Margin</th>
                   <th className="px-4 py-2.5 text-right">Mark-up</th>
                 </tr>
               </thead>
@@ -189,6 +219,8 @@ export default function TrueCosting() {
                         </span>
                       )}
                     </td>
+                    <td className={cn("px-4 py-3 text-right tabular-nums font-semibold",r.profit<0?"text-red-700":"text-emerald-700")}>{formatCurrency(r.profit,currency)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{r.margin==null?"—":`${r.margin.toFixed(1)}%`}</td>
                     <td
                       className={cn(
                         "px-4 py-3 text-right tabular-nums font-medium",

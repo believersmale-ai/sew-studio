@@ -10,6 +10,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const body = await req.json().catch(() => ({}));
   const patch: Record<string, unknown> = {};
   if ("description" in body) { const d = text(body.description, 200); if (!d) return Response.json({ error: "Description is required." }, { status: 400 }); patch.description = d; }
+  if ("supplierName" in body) patch.supplier_name = text(body.supplierName, 200) || null;
+  if ("receiptImageUrl" in body) {
+    const url = text(body.receiptImageUrl, 200);
+    if (url && !/^\\/api\\/files\\/[0-9a-f-]{36}$/i.test(url)) return Response.json({ error: "Invalid receipt image URL." }, { status: 400 });
+    patch.receipt_image_url = url || null;
+  }
+  if ("receiptReference" in body) patch.receipt_reference = text(body.receiptReference, 200) || null;
   if ("obtained" in body) patch.obtained = !!body.obtained;
   if ("plannedCost" in body) patch.planned_cost = money(body.plannedCost);
   if ("actualCost" in body) patch.actual_cost = money(body.actualCost);
