@@ -6,6 +6,7 @@ import "@fontsource/inter/700.css";
 import "@fontsource/playfair-display/500.css";
 import "@fontsource/playfair-display/600.css";
 import "./globals.css";
+import "./atelier-refinement.css";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
