@@ -14,7 +14,7 @@ export function OrderCostReconciliation({orderId,currency}:{orderId:string;curre
  const [extraName,setExtraName]=useState("");
  useEffect(()=>{if(data)setLines((data.actualLines??data.estimatedLines).map(x=>({...x})));},[data]);
  const complete=data&&["Completed","Collected/Delivered"].includes(data.status);
- const save=useMutation({mutationFn:()=>apiPatch(`/api/orders/${orderId}/cost-reconciliation`,{actualLines:lines}),onSuccess:()=>{toast.success("Actual costs reconciled");qc.invalidateQueries({queryKey:["order-cost-reconciliation",orderId]});},onError:(e:Error)=>toast.error(e.message)});
+ const save=useMutation({mutationFn:()=>apiPatch(`/api/orders/${orderId}/cost-reconciliation`,{actualLines:lines}),onSuccess:()=>{toast.success("Actual costs reconciled");qc.invalidateQueries({queryKey:["order-cost-reconciliation",orderId]});qc.invalidateQueries({queryKey:["costing-accuracy"]});},onError:(e:Error)=>toast.error(e.message)});
  if(isLoading)return <p className="text-sm text-stone-500">Loading cost breakdown…</p>;
  if(error||!data)return <p className="text-sm text-amber-800">Original cost snapshot is not available for this order.</p>;
  const actual=total(lines),profit=data.quotedPrice-actual,margin=(p:number)=>data.quotedPrice>0?`${(p/data.quotedPrice*100).toFixed(1)}%`:"—";
