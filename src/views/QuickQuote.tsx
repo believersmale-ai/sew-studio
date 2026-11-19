@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Zap, ShoppingBag, TrendingUp, Save } from "lucide-react";
+import { ShoppingBag, TrendingUp, Save } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SavedQuotes } from "@/components/quotes/SavedQuotes";
@@ -9,7 +9,6 @@ import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import type { Customer, Settings } from "@/lib/types";
 import { orderOverheadMargin, defaultMarkupPercent } from "@/lib/format";
-import { PageHeader } from "@/components/atelier/PageHeader";
 import { SectionCard } from "@/components/atelier/SectionCard";
 import { AnimatedNumber } from "@/components/atelier/AnimatedNumber";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
@@ -293,20 +292,8 @@ export default function QuickQuote() {
   };
 
   return (
-    <div className="p-5 md:p-8 max-w-[900px] mx-auto w-full">
-      <PageHeader
-        eyebrow="Instant pricing"
-        eyebrowIcon={Zap}
-        title="Quotes"
-        subtitle="Price a garment, save the quote and follow it to an order."
-        actions={
-          <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-[#800020]/8 border border-[#800020]/15 text-[#800020]">
-            <Zap className="w-4 h-4" />
-          </span>
-        }
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1200px] mx-auto w-full">
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6 items-start">
         {/* Calculator form (3/5) */}
         <SectionCard
           title="Garment details"
