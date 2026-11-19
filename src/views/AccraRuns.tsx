@@ -13,7 +13,7 @@ import { SectionCard } from "@/components/atelier/SectionCard";
 import { EmptyState } from "@/components/atelier/EmptyState";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
 
-type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number; supplierName?: string; receiptReference?: string };
+type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number; supplierName?: string; receiptReference?: string; receiptImageUrl?: string };
 type Trip = { id: string; tripDate: string; status: "Planned" | "Logged"; notes: string; items: Item[] };
 
 const field = "h-10 rounded-lg border border-[#D2B9BF] bg-white px-3 text-sm outline-none focus:border-[#650019] focus:ring-4 focus:ring-[#650019]/10";
@@ -78,6 +78,22 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
   const [notes, setNotes] = useState(trip.notes ?? "");
   const [supplier, setSupplier] = useState("");
   const [receipt, setReceipt] = useState("");
+  const [uploadingItem, setUploadingItem] = useState<string | null>(null);
+  const uploadReceipt = async (itemId: string, file?: File) => {
+    if (!file) return;
+    if (!["image/jpeg","image/png","image/webp","image/gif"].includes(file.type) || file.size > 5 * 1024 * 1024) { toast.error("Choose a JPG, PNG, WebP or GIF under 5 MB."); return; }
+    setUploadingItem(itemId);
+    try {
+      const form = new FormData(); form.append("file", file);
+      const response = await fetch("/api/uploads?kind=general", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok || typeof result.url !== "string") throw new Error(result.error || "Upload failed");
+      await apiPatch(`${base}/items/${itemId}`, { receiptImageUrl: result.url });
+      toast.success("Receipt image attached");
+      onChange();
+    } catch (e) { onError(e instanceof Error ? e : new Error("Receipt upload failed")); }
+    finally { setUploadingItem(null); }
+  };
   const planned = trip.items.reduce((n, i) => n + i.plannedCost, 0);
   const actual = trip.items.reduce((n, i) => n + i.actualCost, 0);
   const done = trip.items.filter((i) => i.obtained).length;
@@ -113,6 +129,11 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
             <div className="flex flex-col gap-1 text-xs text-stone-500">
               <span>plan {formatCurrency(i.plannedCost, currency)}</span>
               <input key={i.id + "-supplier"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.supplierName ?? ""} placeholder="Supplier" aria-label="Supplier name" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.supplierName??""))patchItem.mutate({id:i.id,body:{supplierName:v}});}} className={`${field} h-8 w-36`} />
+              {i.receiptImageUrl && <a href={i.receiptImageUrl} target="_blank" rel="noopener noreferrer" className="text-[#650019] underline">View receipt image</a>}
+              {canEdit && <label className="cursor-pointer text-[#650019] underline">
+                {uploadingItem === i.id ? "Uploading…" : i.receiptImageUrl ? "Replace receipt image" : "Attach receipt image"}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="sr-only" disabled={uploadingItem !== null} onChange={e=>{void uploadReceipt(i.id,e.target.files?.[0]);e.target.value="";}} />
+              </label>}
               <input key={i.id + "-receipt"} type="text" maxLength={200} disabled={!canEdit} defaultValue={i.receiptReference ?? ""} placeholder="Receipt reference" aria-label="Receipt reference" onBlur={e=>{const v=e.target.value.trim();if(v!==(i.receiptReference??""))patchItem.mutate({id:i.id,body:{receiptReference:v}});}} className={`${field} h-8 w-36`} />
             </div>
             <input key={i.actualCost} type="number" min={0} step="0.01" disabled={!canEdit} defaultValue={i.actualCost || ""} placeholder="Spent" aria-label="Amount spent"
