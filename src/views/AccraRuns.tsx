@@ -75,6 +75,7 @@ export default function AccraRuns() {
 function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; currency: string; canEdit: boolean; onChange: () => void; onError: (e: Error) => void }) {
   const [desc, setDesc] = useState("");
   const [cost, setCost] = useState("");
+  const [notes, setNotes] = useState(trip.notes ?? "");
   const planned = trip.items.reduce((n, i) => n + i.plannedCost, 0);
   const actual = trip.items.reduce((n, i) => n + i.actualCost, 0);
   const done = trip.items.filter((i) => i.obtained).length;
@@ -96,6 +97,11 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
       ) : undefined}
     >
       <div className="px-4 pt-3 space-y-1"><p className="text-xs text-stone-500">{done} of {trip.items.length} obtained · planned {formatCurrency(planned, currency)} · spent {formatCurrency(actual, currency)}</p><p className={`text-xs font-medium ${actual>planned?"text-red-700":"text-emerald-700"}`}>{actual>planned ? "Over plan by " : "Remaining against plan: "}{formatCurrency(Math.abs(planned-actual),currency)}</p></div>
+      <div className="px-4 py-3 border-b border-[#EEDFE3] space-y-2">
+        <label htmlFor={`market-notes-${trip.id}`} className="block text-xs font-medium text-stone-600">Trip notes, supplier details and purchase references</label>
+        <textarea id={`market-notes-${trip.id}`} maxLength={1000} rows={2} disabled={!canEdit} value={notes} onChange={e=>setNotes(e.target.value)} placeholder="Suppliers, market location, receipt numbers, transport notes…" className={`${field} w-full min-h-20 py-2`} />
+        {canEdit && <PremiumButton size="sm" variant="outline" disabled={patchTrip.isPending || notes === (trip.notes ?? "")} onClick={()=>patchTrip.mutate({notes})}>Save trip notes</PremiumButton>}
+      </div>
       <ul className="divide-y divide-[#EEDFE3]">
         {trip.items.map((i) => (
           <li key={i.id} className="flex flex-wrap items-center gap-3 px-4 py-2.5">
