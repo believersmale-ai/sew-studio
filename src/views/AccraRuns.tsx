@@ -57,7 +57,7 @@ export default function AccraRuns() {
   const addTrip = useMutation({ mutationFn: () => apiPost("/api/accra-runs", { tripDate: date }), onSuccess: () => { toast.success("Trip planned"); refresh(); }, onError });
 
   return (
-    <div className="p-5 md:p-8 max-w-[1000px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1000px] mx-auto w-full">
       <PageHeader eyebrow="Studio" eyebrowIcon={Truck} title="Market Runs" subtitle="Plan a buying trip, tick off what you got, and record what you really spent." />
       {canEdit && (
         <div className="mb-5 flex flex-wrap items-end gap-3">
