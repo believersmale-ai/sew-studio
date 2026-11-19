@@ -8,7 +8,9 @@ export async function GET(){
  if(ordersError)return Response.json({error:ordersError.message},{status:500});
  const {data:costs,error}=await ctx.db.from("order_cost_reconciliations").select("*").eq("shop_id",ctx.shopId).not("reconciled_at","is",null);
  if(error)return Response.json({error:error.message},{status:500});
- const map=new Map((orders??[]).map(x=>[x.id,x]));
+ type AccuracyOrder = { id: string; garment_design: string; order_date: string };
+ const orderRows = (orders ?? []) as AccuracyOrder[];
+ const map = new Map<string, AccuracyOrder>(orderRows.map(order => [order.id, order]));
  const rows=(costs??[]).flatMap(c=>{
   const order=map.get(c.order_id);if(!order||!c.actual_lines)return [];
   const estimated=sumLines(c.estimated_lines as CostLine[]),actual=sumLines(c.actual_lines as CostLine[]),price=Number(c.quoted_price);
