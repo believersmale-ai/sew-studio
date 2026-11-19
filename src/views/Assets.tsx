@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Package, Plus, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { AlertTriangle, Package, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useRoleAccess } from "@/stores/role-access";
