@@ -133,6 +133,8 @@ export default function QuickQuote() {
   const [embellishment, setEmbellishment] = useState<Embellishment>("None");
   const [rush, setRush] = useState<boolean>(false);
   const [wastagePct, setWastagePct] = useState(0);
+  const [labourBaseOverride, setLabourBaseOverride] = useState<number | null>(null);
+  const [rushPercentOverride, setRushPercentOverride] = useState<number | null>(null);
   const [otherCosts, setOtherCosts] = useState(0);
   const [items, setItems] = useState<CostItem[]>([]);
   const [extras, setExtras] = useState<Extra[]>([]);
@@ -184,11 +186,12 @@ export default function QuickQuote() {
     const safeYards = Math.max(0, Number(yards) || 0);
 
     const fabricCost = clientFabric ? 0 : fabricBase * safeYards;
-    const labourBase = LABOUR_BASE[garment] ?? 500;
+    const labourBase = labourBaseOverride ?? LABOUR_BASE[garment] ?? 500;
     const labour = Math.round(labourBase * COMPLEXITY_MULTIPLIER[complexity]);
     const embellishmentCost = EMBELLISHMENT_COST[embellishment];
     const subtotal = fabricCost + labour + embellishmentCost;
-    const rushPremium = rush ? Math.round(subtotal * 0.25) : 0;
+    const rushPercent = rushPercentOverride ?? pricingSettings?.rushFeePercent ?? 25;
+    const rushPremium = rush ? Math.round(subtotal * Math.max(0, rushPercent) / 100) : 0;
     const wastage = fabricCost * Math.max(0, wastagePct) / 100;
     const overhead = orderOverheadMargin({ fabricCost: fabricCost + wastage }, pricingSettings);
     const itemTotal = items.reduce((sum,x) => sum + x.quantity * x.unitCost, 0);
@@ -213,7 +216,9 @@ export default function QuickQuote() {
     return {
       fabricBase,
       fabricCost,
+      labourBase,
       labour,
+      rushPercent,
       embellishmentCost,
       subtotal,
       rushPremium,
@@ -234,7 +239,7 @@ export default function QuickQuote() {
       extrasCost,
       extrasPrice,
     };
-  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost]);
+  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost, labourBaseOverride, rushPercentOverride]);
 
   const qc = useQueryClient();
   const [quoteCustomerId, setQuoteCustomerId] = useState("");
@@ -254,7 +259,7 @@ export default function QuickQuote() {
         total: calc.total,
         deposit: calc.suggestedDeposit,
         validUntil: until,
-        inputs: { garment, fabric, yards, complexity, embellishment, rush, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
+        inputs: { garment, fabric, yards, complexity, embellishment, rush, labourBase: calc.labourBase, labour: calc.labour, rushPercent: calc.rushPercent, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Quote saved"); },
@@ -366,6 +371,16 @@ export default function QuickQuote() {
             </div>
           </div>
 
+          <div className="grid gap-2 rounded-lg border border-[#EEDFE3] p-3">
+            <p className="font-semibold text-sm">Labour costing</p>
+            <p className="text-xs text-stone-500">Labour cost = base labour rate × selected complexity multiplier. Included in True Cost, not profit.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour (GHS)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? LABOUR_BASE[garment]} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
+              <div className="grid gap-1"><Label>Complexity multiplier</Label><p className="rounded-md border bg-white px-3 py-2 text-sm">{COMPLEXITY_LABEL[complexity]}</p></div>
+            </div>
+            <p className="text-sm font-medium">Calculated labour: {formatCurrency(calc.labour)}</p>
+            {labourBaseOverride !== null && <button type="button" className="text-xs text-[#800020] underline text-left" onClick={()=>setLabourBaseOverride(null)}>Restore garment default</button>}
+          </div>
           <div className="grid gap-1.5">
             <Label htmlFor="qq-embellishment">Embellishment</Label>
             <Select
@@ -412,6 +427,7 @@ export default function QuickQuote() {
           </div>
           <Separator />
 
+          <div className="grid gap-1.5"><Label htmlFor="qq-rush-rate">Rush premium %</Label><Input id="qq-rush-rate" type="number" min={0} value={rushPercentOverride ?? pricingSettings?.rushFeePercent ?? 25} onChange={e=>setRushPercentOverride(Math.max(0,Number(e.target.value)||0))} /><p className="text-xs text-stone-500">Applied to fabric, labour and embellishment before the selling-price discount.</p></div>
           <Separator />
 
           <div className="flex items-center justify-between gap-3">
@@ -420,7 +436,7 @@ export default function QuickQuote() {
                 2-Week Rush
               </Label>
               <p className="text-xs text-stone-500">
-                Adds a 25% premium to fabric, labour and embellishment.
+                Adds a configurable premium to fabric, labour and embellishment.
               </p>
             </div>
             <Switch
@@ -440,7 +456,7 @@ export default function QuickQuote() {
               value={calc.fabricCost}
             />
             <LineItem
-              label={`Labour · ${garment}`}
+              label={`Labour · ${garment} (${formatCurrency(calc.labourBase)} × ${COMPLEXITY_LABEL[complexity]})`}
               value={calc.labour}
             />
             {calc.embellishmentCost > 0 && (
@@ -466,7 +482,7 @@ export default function QuickQuote() {
 
             {rush && (
               <LineItem
-                label="Rush premium (+25%)"
+                label={`Rush premium (+${calc.rushPercent}% on fabric, labour and embellishment)`}
                 value={calc.rushPremium}
                 accent
               />
