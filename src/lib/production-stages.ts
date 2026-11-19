@@ -7,7 +7,7 @@ export const STAGE_GROUPS = [
   {
     key: "garment",
     title: "Garment Production",
-    stages: ["Pattern Drafting", "Cutting", "Ironing/Pressing", "Interfacing & Lining", "Stitching/Sewing", "Finishing"],
+    stages: ["Pattern Drafting", "Cutting", "Ironing/Pressing", "Interfacing & Lining", "Stitching/Sewing", "Embellishments & Ornamentation", "Finishing"],
   },
   {
     key: "fittings",
@@ -99,6 +99,11 @@ export function logOf(order: { status: string; productionStage?: string | null; 
     const out: ProductionLog = {};
     for (const [stage, e] of Object.entries(raw as Record<string, LogEntry>)) {
       if (isProductionStage(stage) && e && (e.state === "done" || e.state === "skipped")) out[stage] = e;
+    }
+    // Older orders may have finished before embellishments was introduced.
+    const embellishments = "Embellishments & Ornamentation";
+    if (!out[embellishments] && ALL_STAGES.slice(ALL_STAGES.indexOf(embellishments) + 1).some((stage) => out[stage])) {
+      out[embellishments] = { state: "skipped" };
     }
     return out;
   }
