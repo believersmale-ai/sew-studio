@@ -83,6 +83,25 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["system_admins"]["Row"]>;
         Relationships: [];
       };
+      studio_memberships: {
+        Row: {
+          id: string;
+          user_id: string;
+          shop_id: string;
+          role: "madam" | "staff" | "freelancer" | "trainee" | "trainer";
+          status: "active" | "removed";
+          can_access_orders: boolean;
+          can_access_board: boolean;
+          can_manage_freelancers: boolean;
+          joined_at: string;
+          removed_at: Nullable<string>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Pick<Database["public"]["Tables"]["studio_memberships"]["Row"], "user_id" | "shop_id" | "role"> & Partial<Database["public"]["Tables"]["studio_memberships"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["studio_memberships"]["Row"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
