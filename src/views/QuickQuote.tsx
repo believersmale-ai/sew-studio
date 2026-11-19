@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { SavedQuotes } from "@/components/quotes/SavedQuotes";
 import { apiErrorMessage, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
+import { useRole } from "@/stores/role";
 import type { Customer, Settings } from "@/lib/types";
 import { orderOverheadMargin, defaultMarkupPercent } from "@/lib/format";
 import { SectionCard } from "@/components/atelier/SectionCard";
@@ -114,24 +115,25 @@ export default function QuickQuote() {
   const [itemPresets, setItemPresets] = useState<{name:string;unitCost:number}[]>(STARTER_ITEMS);
   const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>(STARTER_EXTRAS);
   const shopName = useAuth(a => a.user?.shop?.name);
+  const canManagePresets = useRole(s => s.role === "madam");
   const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   useEffect(() => {
     if (!pricingSettings) return;
     setItemPresets(mergeItemPresets(pricingSettings.quoteItemPresets ?? []));
     setExtraPresets(mergeExtraPresets(pricingSettings.quoteExtraPresets ?? []));
   }, [pricingSettings?.quoteItemPresets, pricingSettings?.quoteExtraPresets]);
-  const savePresets = (savedItems: typeof itemPresets, savedExtras: typeof extraPresets) => {
-    // Store only the requested category to avoid overwriting another device's changes.
-    // The server validates and isolates all values to the current studio.
-    return apiPatch<Settings>("/api/settings", {
-      quoteItemPresets: savedItems.slice(0, 100),
-      quoteExtraPresets: savedExtras.slice(0, 100),
-    }).then(() => {
-      qc.invalidateQueries({ queryKey: ["settings"] });
-    }).catch((error: unknown) => {
-      toast.error(apiErrorMessage(error, "Could not save studio suggestions."));
-      qc.invalidateQueries({ queryKey: ["settings"] });
-    });
+  const savePresets = (category: "items" | "extras", entries: typeof itemPresets | typeof extraPresets) => {
+    if (!canManagePresets) return;
+    // Patch only the edited category so other studio suggestion lists are not overwritten.
+    const payload = category === "items"
+      ? { quoteItemPresets: (entries as typeof itemPresets).slice(0, 100) }
+      : { quoteExtraPresets: (entries as typeof extraPresets).slice(0, 100) };
+    void apiPatch<Settings>("/api/settings", payload)
+      .then(() => { void qc.invalidateQueries({ queryKey: ["settings"] }); })
+      .catch((error: unknown) => {
+        toast.error(apiErrorMessage(error, "Could not save studio suggestions."));
+        void qc.invalidateQueries({ queryKey: ["settings"] });
+      });
   };
   const removeSavedItem = () => {
     const name = itemName.trim().toLowerCase();
@@ -139,9 +141,9 @@ export default function QuickQuote() {
     const saved = itemPresets.filter(x => x.name.toLowerCase() !== name);
     const custom = saved.filter(x => !STARTER_ITEMS.some(y => y.name.toLowerCase() === x.name.toLowerCase()));
     setItemPresets(mergeItemPresets(custom));
-    savePresets(custom, extraPresets);
+    savePresets("items", custom);
     setItemName(""); setItemCost(0);
-    toast.success("Saved item removed from this device.");
+    toast.success("Studio item suggestion removed.");
   };
   const removeSavedExtra = () => {
     const name = extraName.trim().toLowerCase();
@@ -149,21 +151,23 @@ export default function QuickQuote() {
     const saved = extraPresets.filter(x => x.name.toLowerCase() !== name);
     const custom = saved.filter(x => !STARTER_EXTRAS.some(y => y.name.toLowerCase() === x.name.toLowerCase()));
     setExtraPresets(mergeExtraPresets(custom));
-    savePresets(itemPresets, custom);
+    savePresets("extras", custom);
     setExtraName(""); setExtraPrice(0); setExtraCost(0);
-    toast.success("Saved extra removed from this device.");
+    toast.success("Studio extra suggestion removed.");
   };
   const addItem = () => {
     if (!itemName.trim()) { toast.error("Enter an item name."); return; }
     setItems(v => [...v, {id:id(),name:itemName.trim(),quantity:Math.max(0,itemQty),unitCost:Math.max(0,itemCost)}]);
     const saved = [...itemPresets.filter(x => x.name.toLowerCase() !== itemName.trim().toLowerCase()),{name:itemName.trim(),unitCost:Math.max(0,itemCost)}];
-    setItemPresets(mergeItemPresets(saved)); savePresets(saved,extraPresets); setItemName(""); setItemQty(1); setItemCost(0);
+    if (canManagePresets) { setItemPresets(mergeItemPresets(saved)); savePresets("items", saved); }
+    setItemName(""); setItemQty(1); setItemCost(0);
   };
   const addExtra = () => {
     if (!extraName.trim()) { toast.error("Enter an extra name."); return; }
     setExtras(v => [...v,{id:id(),name:extraName.trim(),price:Math.max(0,extraPrice),cost:Math.max(0,extraCost),accepted:true}]);
     const saved = [...extraPresets.filter(x => x.name.toLowerCase() !== extraName.trim().toLowerCase()),{name:extraName.trim(),price:Math.max(0,extraPrice),cost:Math.max(0,extraCost)}];
-    setExtraPresets(mergeExtraPresets(saved)); savePresets(itemPresets,saved); setExtraName(""); setExtraPrice(0); setExtraCost(0);
+    if (canManagePresets) { setExtraPresets(mergeExtraPresets(saved)); savePresets("extras", saved); }
+    setExtraName(""); setExtraPrice(0); setExtraCost(0);
   };
   const [markupOverride, setMarkupOverride] = useState<number | null>(null);
   const [finalOverride, setFinalOverride] = useState<number | null>(null);
@@ -417,7 +421,7 @@ export default function QuickQuote() {
             <select aria-label="Choose production item" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a production item…</option><optgroup label="Your saved items">{itemPresets.filter(x=>!STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup><optgroup label="Starter suggestions">{itemPresets.filter(x=>STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup></select>
             <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
             <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
-            <div className="flex flex-wrap gap-2"><button type="button" onClick={addItem} className="rounded-md border p-2 font-medium">+ Add item</button>{itemPresets.some(x=>x.name.toLowerCase()===itemName.trim().toLowerCase() && !STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedItem} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
+            <div className="flex flex-wrap gap-2"><button type="button" onClick={addItem} className="rounded-md border p-2 font-medium">+ Add item</button>{canManagePresets && itemPresets.some(x=>x.name.toLowerCase()===itemName.trim().toLowerCase() && !STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedItem} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
             {items.map(x=><div key={x.id} className="flex justify-between gap-2 text-sm"><span>{x.name} × {x.quantity} · {formatCurrency(x.quantity*x.unitCost)}</span><button type="button" className="text-red-700 underline" onClick={()=>setItems(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
           </div>
           <Separator />
@@ -429,7 +433,7 @@ export default function QuickQuote() {
             <select aria-label="Choose optional extra" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose an optional extra…</option><optgroup label="Your saved extras">{extraPresets.filter(x=>!STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup><optgroup label="Starter suggestions">{extraPresets.filter(x=>STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup></select>
             <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
             <div className="grid grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
-            <div className="flex flex-wrap gap-2"><button type="button" onClick={addExtra} className="rounded-md border p-2 font-medium">+ Add extra</button>{extraPresets.some(x=>x.name.toLowerCase()===extraName.trim().toLowerCase() && !STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedExtra} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
+            <div className="flex flex-wrap gap-2"><button type="button" onClick={addExtra} className="rounded-md border p-2 font-medium">+ Add extra</button>{canManagePresets && extraPresets.some(x=>x.name.toLowerCase()===extraName.trim().toLowerCase() && !STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedExtra} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
             {extras.map(x=><div key={x.id} className="flex justify-between gap-2 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={x.accepted} onChange={e=>setExtras(v=>v.map(y=>y.id===x.id?{...y,accepted:e.target.checked}:y))} />{x.name} · {formatCurrency(x.price)}</label><button type="button" className="text-red-700 underline" onClick={()=>setExtras(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
           </div>
           <Separator />
