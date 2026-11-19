@@ -14,6 +14,7 @@ import { EmptyState } from "@/components/atelier/EmptyState";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
 
 type Item = { id: string; description: string; obtained: boolean; plannedCost: number; actualCost: number; supplierName?: string; receiptReference?: string; receiptImageUrl?: string };
+type Supplier = { id: string; name: string; phone: string | null; location: string | null; notes: string | null };
 type Trip = { id: string; tripDate: string; status: "Planned" | "Logged"; notes: string; items: Item[] };
 
 const field = "h-10 rounded-lg border border-[#D2B9BF] bg-white px-3 text-sm outline-none focus:border-[#650019] focus:ring-4 focus:ring-[#650019]/10";
@@ -26,6 +27,12 @@ export default function AccraRuns() {
   const { data: trips, isLoading } = useQuery<Trip[]>({ queryKey: ["accra-runs"], queryFn: () => apiGet<Trip[]>("/api/accra-runs") });
   const { data: settings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const currency = settings?.currency || "GHS";
+  const {data: suppliers = []} = useQuery<Supplier[]>({queryKey:["market-run-suppliers"],queryFn:()=>apiGet<Supplier[]>("/api/market-run-suppliers")});
+  const [supplierName,setSupplierName] = useState("");
+  const [supplierPhone,setSupplierPhone] = useState("");
+  const [supplierLocation,setSupplierLocation] = useState("");
+  const [showSuppliers,setShowSuppliers] = useState(false);
+  const addSupplier = useMutation({mutationFn:()=>apiPost("/api/market-run-suppliers",{name:supplierName,phone:supplierPhone,location:supplierLocation}),onSuccess:()=>{setSupplierName("");setSupplierPhone("");setSupplierLocation("");toast.success("Supplier saved");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
   const refresh = () => qc.invalidateQueries({ queryKey: ["accra-runs"] });
   const onError = (e: Error) => toast.error(e.message);
 
@@ -52,6 +59,17 @@ export default function AccraRuns() {
           <PremiumButton onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan a trip</PremiumButton>
         </div>
       )}
+      <SectionCard title="Supplier directory" action={<PremiumButton size="sm" variant="outline" onClick={()=>setShowSuppliers(v=>!v)}>{showSuppliers?"Hide suppliers":"Manage suppliers"}</PremiumButton>}>
+        {showSuppliers && <div className="p-4 space-y-3">
+          {canEdit && <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();if(supplierName.trim())addSupplier.mutate();}}>
+            <input required maxLength={150} aria-label="Supplier name" placeholder="Supplier name" value={supplierName} onChange={e=>setSupplierName(e.target.value)} className={`${field} flex-1 min-w-36`}/>
+            <input maxLength={80} aria-label="Supplier phone" placeholder="Phone" value={supplierPhone} onChange={e=>setSupplierPhone(e.target.value)} className={`${field} w-36`}/>
+            <input maxLength={200} aria-label="Supplier location" placeholder="Market / location" value={supplierLocation} onChange={e=>setSupplierLocation(e.target.value)} className={`${field} w-40`}/>
+            <PremiumButton type="submit" disabled={addSupplier.isPending}><Plus className="size-4"/> Save supplier</PremiumButton>
+          </form>}
+          <div className="divide-y divide-[#EEDFE3]">{suppliers.map(x=><div key={x.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span className="font-medium">{x.name}</span><span className="text-stone-500">{[x.phone,x.location].filter(Boolean).join(" · ")}</span></div>)}{suppliers.length===0 && <p className="text-sm text-stone-500">No suppliers saved yet.</p>}</div>
+        </div>}
+      </SectionCard>
       {!isLoading && !!trips?.length && <div className="mb-5 space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-xl border border-[#EEDFE3] bg-white p-4"><p className="text-xs text-stone-500">Planned purchases</p><p className="text-xl font-semibold tabular-nums">{formatCurrency(plannedTotal,currency)}</p></div>
@@ -66,13 +84,13 @@ export default function AccraRuns() {
       {isLoading ? <p className="text-sm text-stone-400">Loading…</p> : !trips?.length ? (
         <SectionCard><EmptyState icon={Truck} title="No trips yet" description="Plan your next trip to the market, then list what you need to buy." action={canEdit ? <PremiumButton size="sm" onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan your first trip</PremiumButton> : undefined} /></SectionCard>
       ) : visibleTrips.length === 0 ? <SectionCard><p className="p-4 text-sm text-stone-500">No {filter.toLowerCase()} trips match this filter.</p></SectionCard> : (
-        <div className="space-y-5">{visibleTrips.map((t) => <TripCard key={t.id} trip={t} currency={currency} canEdit={canEdit} onChange={refresh} onError={onError} />)}</div>
+        <div className="space-y-5">{visibleTrips.map((t) => <TripCard key={t.id} trip={t} currency={currency} canEdit={canEdit} suppliers={suppliers} onChange={refresh} onError={onError} />)}</div>
       )}
     </div>
   );
 }
 
-function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; currency: string; canEdit: boolean; onChange: () => void; onError: (e: Error) => void }) {
+function TripCard({ trip, currency, canEdit, suppliers, onChange, onError }: { trip: Trip; currency: string; canEdit: boolean; suppliers: Supplier[]; onChange: () => void; onError: (e: Error) => void }) {
   const [desc, setDesc] = useState("");
   const [cost, setCost] = useState("");
   const [notes, setNotes] = useState(trip.notes ?? "");
@@ -147,7 +165,8 @@ function TripCard({ trip, currency, canEdit, onChange, onError }: { trip: Trip; 
         <form className="flex flex-wrap gap-2 border-t border-[#EEDFE3] p-4" onSubmit={(e) => { e.preventDefault(); if (desc.trim()) addItem.mutate(); }}>
           <input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="What to buy (e.g. 6 yards lace)" maxLength={200} className={`${field} min-w-0 flex-1`} />
           <input type="number" min={0} step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Planned cost" className={`${field} w-32`} />
-          <input value={supplier} onChange={e=>setSupplier(e.target.value)} maxLength={200} placeholder="Supplier (optional)" aria-label="Supplier for new item" className={`${field} w-40`} />
+          <input list={`market-suppliers-${trip.id}`} value={supplier} onChange={e=>setSupplier(e.target.value)} maxLength={200} placeholder="Supplier (optional)" aria-label="Supplier for new item" className={`${field} w-40`} />
+          <datalist id={`market-suppliers-${trip.id}`}>{suppliers.map(x=><option key={x.id} value={x.name}/>)}</datalist>
           <input value={receipt} onChange={e=>setReceipt(e.target.value)} maxLength={200} placeholder="Receipt reference" aria-label="Receipt for new item" className={`${field} w-40`} />
           <PremiumButton type="submit" size="md" disabled={addItem.isPending}><Plus className="size-4" /> Add</PremiumButton>
         </form>
