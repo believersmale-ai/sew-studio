@@ -23,15 +23,9 @@ export async function POST(req:Request) {
     return Response.json({error:"Enter a name and valid nonnegative stock quantities and costs."},{status:400});
   const {data,error}=await ctx.db.from("inventory_items").insert({
     shop_id:ctx.shopId,name,sku:clean(b.sku,60)||null,category:clean(b.category,60)||"Other",
-    unit:clean(b.unit,20)||"pcs",reorder_level:reorder,unit_cost:cost,
+    unit:clean(b.unit,20)||"pcs",quantity,reorder_level:reorder,unit_cost:cost,
     location:clean(b.location)||null,supplier:clean(b.supplier)||null,notes:clean(b.notes,500)||null,
   }).select("*").single();
   if(error)return Response.json({error:error.message},{status:400});
-  if(quantity>0){
-    const movement=await ctx.db.from("inventory_movements").insert({
-      shop_id:ctx.shopId,item_id:data.id,movement_type:"opening",quantity_delta:quantity,note:"Opening balance",
-    });
-    if(movement.error) return Response.json({error:"Item created but opening balance failed: "+movement.error.message},{status:500});
-  }
   return Response.json({id:data.id},{status:201});
 }
