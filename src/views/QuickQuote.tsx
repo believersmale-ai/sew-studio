@@ -132,7 +132,7 @@ export default function QuickQuote() {
   const [complexity, setComplexity] = useState<Complexity>("Moderate");
   const [embellishment, setEmbellishment] = useState<Embellishment>("None");
   const [rush, setRush] = useState<boolean>(false);
-  const [wastagePct, setWastagePct] = useState(0);
+  const [wastageOverride, setWastageOverride] = useState<number | null>(null);
   const [labourBaseOverride, setLabourBaseOverride] = useState<number | null>(null);
   const [rushPercentOverride, setRushPercentOverride] = useState<number | null>(null);
   const [otherCosts, setOtherCosts] = useState(0);
@@ -180,6 +180,7 @@ export default function QuickQuote() {
   const [depositOverride, setDepositOverride] = useState<number | null>(null);
 
   const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
+  const wastagePct = wastageOverride ?? pricingSettings?.defaultWastagePercent ?? 0;
   const calc = useMemo(() => {
     const fabricBase =
       FABRICS.find((f) => f.label === fabric)?.basePerYard ?? 150;
@@ -489,7 +490,7 @@ export default function QuickQuote() {
             )}
 
             <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-1"><Label htmlFor="qq-wastage">Wastage %</Label><Input id="qq-wastage" type="number" min={0} value={wastagePct} onChange={e => setWastagePct(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-wastage">Wastage %</Label><Input id="qq-wastage" type="number" min={0} value={wastagePct} onChange={e => setWastageOverride(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-other">Other costs (GHS)</Label><Input id="qq-other" type="number" min={0} value={otherCosts} onChange={e => setOtherCosts(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-markup">Mark-up %</Label><Input id="qq-markup" type="number" min={0} value={calc.markup} onChange={e => setMarkupOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-deposit">Deposit %</Label><Input id="qq-deposit" type="number" min={0} max={100} value={calc.depositPct} onChange={e => setDepositOverride(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
