@@ -75,7 +75,7 @@ export default function Contacts() {
 
   const noun = kind === "suppliers" ? "Supplier" : "Artisan";
   return (
-    <div className="mx-auto w-full max-w-[1100px] p-5 md:p-8">
+    <div className="mx-auto w-full max-w-[1100px] px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader eyebrow="Who you buy from & who fixes things" eyebrowIcon={BookUser} title="Contacts" subtitle="Suppliers you buy materials from, and artisans who service your equipment." />
 
       <div role="tablist" aria-label="Contact type" className="mb-4 inline-flex rounded-lg bg-[#F4ECEE] p-1">
