@@ -457,7 +457,7 @@ function MainDashboard() {
   /* ----- loading + error guards ----- */
   if (isLoading || !m) {
     return (
-      <div className="p-5 md:p-8 max-w-[1400px] mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
         <div className="mb-8">
           <div className="h-3 w-32 shimmer rounded mb-3" />
           <div className="h-9 w-72 shimmer rounded mb-3" />
@@ -483,7 +483,7 @@ function MainDashboard() {
 
   if (isError) {
     return (
-      <div className="p-5 md:p-8 max-w-[1400px] mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
         <SectionCard title="Could not load dashboard">
           <EmptyState
             icon={AlertCircle}
@@ -531,7 +531,7 @@ function MainDashboard() {
   // appears as soon as the first order exists.
   if (owner && m.orders.length === 0) {
     return (
-      <div className="p-5 md:p-8 max-w-[860px] mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[860px] mx-auto w-full">
         <PageHeader
           eyebrow={`Welcome · ${today}`}
           eyebrowIcon={CalendarDays}
@@ -557,7 +557,7 @@ function MainDashboard() {
       : "bg-[#800020]";
 
   return (
-    <div className="p-5 md:p-8 max-w-[1400px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
       {/* ---------- PageHeader ---------- */}
       <PageHeader
         eyebrow={`Atelier overview · ${today}`}
@@ -1404,7 +1404,7 @@ function TraineeDashboard({ userId }: { userId: string }) {
 
   if (loading) {
     return (
-      <div className="p-5 md:p-8 max-w-[1400px] mx-auto w-full">
+      <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
         <div className="mb-8">
           <div className="h-3 w-32 shimmer rounded mb-3" />
           <div className="h-9 w-72 shimmer rounded mb-3" />
@@ -1423,7 +1423,7 @@ function TraineeDashboard({ userId }: { userId: string }) {
   }
 
   return (
-    <div className="p-5 md:p-8 max-w-[1400px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
       <PageHeader
         eyebrow="My apprenticeship"
         eyebrowIcon={GraduationCap}
