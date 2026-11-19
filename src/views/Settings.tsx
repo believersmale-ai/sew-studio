@@ -42,6 +42,7 @@ import { formatCurrency, setStudioCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { OverheadItem, Settings as ShopSettings } from "@/lib/types";
 import { PlanSettingsPanel } from "@/views/PlanSettingsPanel";
+import { DEFAULT_GARMENT_LABOUR, DEFAULT_QUOTE_COMPLEXITIES, parseGarmentLabour, parseQuoteComplexities, validateQuotePricing, type GarmentLabourRate, type QuoteComplexityLevel } from "@/lib/quote-pricing";
 
 // ISO 4217 currency codes. Formatting itself is done by Intl.NumberFormat, so
 // symbols/placement are always correct for whichever code is chosen.
@@ -135,6 +136,10 @@ export default function Settings() {
   const [depositPercent, setDepositPercent] = useState<number>(50);
   const [rushFeePercent, setRushFeePercent] = useState<number>(25);
   const [quoteValidDays, setQuoteValidDays] = useState<number>(14);
+  const [garmentLabour, setGarmentLabour] = useState<GarmentLabourRate[]>(() => DEFAULT_GARMENT_LABOUR.map(x => ({ ...x })));
+  const [complexityLevels, setComplexityLevels] = useState<QuoteComplexityLevel[]>(() => DEFAULT_QUOTE_COMPLEXITIES.map(x => ({ ...x })));
+  const [newGarmentName, setNewGarmentName] = useState("");
+  const [newComplexityName, setNewComplexityName] = useState("");
   const [fullBalanceBeforePickup, setFullBalanceBeforePickup] = useState(true);
   const [fittingsIncluded, setFittingsIncluded] = useState<number>(2);
   const [alterationsWindowDays, setAlterationsWindowDays] = useState<number>(14);
@@ -168,6 +173,8 @@ export default function Settings() {
     setDepositPercent(data.depositPercent ?? 50);
     setRushFeePercent(data.rushFeePercent ?? 25);
     setQuoteValidDays(data.quoteValidDays ?? 14);
+    setGarmentLabour(parseGarmentLabour(data.quoteGarmentLabour));
+    setComplexityLevels(parseQuoteComplexities(data.quoteComplexityLevels));
     setFullBalanceBeforePickup(data.fullBalanceBeforePickup ?? true);
     setFittingsIncluded(data.fittingsIncluded ?? 2);
     setAlterationsWindowDays(data.alterationsWindowDays ?? 14);
@@ -224,6 +231,8 @@ export default function Settings() {
         depositPercent,
         rushFeePercent,
         quoteValidDays,
+        quoteGarmentLabour: garmentLabour.map(x => ({ name: x.name.trim(), baseLabour: x.baseLabour })),
+        quoteComplexityLevels: complexityLevels.map(x => ({ name: x.name.trim(), multiplier: x.multiplier })),
         fullBalanceBeforePickup,
         fittingsIncluded,
         alterationsWindowDays,
@@ -279,6 +288,8 @@ export default function Settings() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
+          const pricingError = validateQuotePricing(garmentLabour, complexityLevels);
+          if (pricingError) { toast.error(pricingError); return; }
           saveMutation.mutate();
         }}
         className="mt-6"
@@ -649,6 +660,32 @@ export default function Settings() {
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Pricing policies & terms</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Deposits, rush fees, fittings and the client-facing terms shown on quotes and invoices.</p>
             </div>
+        <SectionCard title="Garment labour prices" action={<Scissors className="size-4 text-stone-400" />}>
+          <div className="space-y-3 p-1">
+            <p className="text-xs text-stone-500">Studio-wide base labour defaults for new quotes. Each quote can still override its labour without changing these prices.</p>
+            {garmentLabour.map((item, index) => (
+              <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(90px,130px)_auto] items-end gap-2">
+                <div className="min-w-0"><Label htmlFor={`garment-name-${index}`}>Garment</Label><Input id={`garment-name-${index}`} maxLength={80} value={item.name} onChange={e=>setGarmentLabour(prev=>prev.map((x,i)=>i===index?{...x,name:e.target.value}:x))} /></div>
+                <div className="min-w-0"><Label htmlFor={`garment-price-${index}`}>Base labour ({currency})</Label><Input id={`garment-price-${index}`} type="number" min={0} max={10000000} step="0.01" value={item.baseLabour} onChange={e=>setGarmentLabour(prev=>prev.map((x,i)=>i===index?{...x,baseLabour:Number(e.target.value)}:x))} /></div>
+                <button type="button" aria-label={`Remove ${item.name}`} disabled={garmentLabour.length <= 1} onClick={()=>setGarmentLabour(prev=>prev.filter((_,i)=>i!==index))} className="grid size-10 place-items-center rounded-lg border border-[#EEDFE3] text-stone-500 disabled:opacity-40"><X className="size-4" /></button>
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2"><Input className="min-w-0 flex-1" maxLength={80} placeholder="New garment type" aria-label="New garment type" value={newGarmentName} onChange={e=>setNewGarmentName(e.target.value)} /><PremiumButton type="button" variant="outline" size="sm" onClick={()=>{const name=newGarmentName.trim();if(!name)return;setGarmentLabour(prev=>[...prev,{name,baseLabour:0}]);setNewGarmentName("");}}><Plus className="size-4"/> Add garment</PremiumButton></div>
+          </div>
+        </SectionCard>
+        <SectionCard title="Complexity levels" action={<Percent className="size-4 text-stone-400" />}>
+          <div className="space-y-3 p-1">
+            <p className="text-xs text-stone-500">Rename, add or remove levels and set the labour multiplier used by new quotes. Example: 1.3 means 130% of base labour.</p>
+            {complexityLevels.map((item,index)=>(
+              <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(90px,130px)_auto] items-end gap-2">
+                <div className="min-w-0"><Label htmlFor={`complexity-name-${index}`}>Level</Label><Input id={`complexity-name-${index}`} maxLength={80} value={item.name} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,name:e.target.value}:x))}/></div>
+                <div className="min-w-0"><Label htmlFor={`complexity-multiplier-${index}`}>Multiplier ×</Label><Input id={`complexity-multiplier-${index}`} type="number" min={0.01} max={100} step={0.05} value={item.multiplier} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,multiplier:Number(e.target.value)}:x))}/></div>
+                <button type="button" aria-label={`Remove ${item.name}`} disabled={complexityLevels.length<=1} onClick={()=>setComplexityLevels(prev=>prev.filter((_,i)=>i!==index))} className="grid size-10 place-items-center rounded-lg border border-[#EEDFE3] text-stone-500 disabled:opacity-40"><X className="size-4"/></button>
+              </div>
+            ))}
+            <div className="flex flex-wrap gap-2"><Input className="min-w-0 flex-1" maxLength={80} placeholder="New complexity level" aria-label="New complexity level" value={newComplexityName} onChange={e=>setNewComplexityName(e.target.value)} /><PremiumButton type="button" variant="outline" size="sm" onClick={()=>{const name=newComplexityName.trim();if(!name)return;setComplexityLevels(prev=>[...prev,{name,multiplier:1}]);setNewComplexityName("");}}><Plus className="size-4"/> Add level</PremiumButton></div>
+          </div>
+        </SectionCard>
         <SectionCard
           title="Money"
           action={<Percent className="w-4 h-4 text-stone-400" />}
