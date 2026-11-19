@@ -151,6 +151,27 @@ export default async function HomePage() {
             <p className="max-w-md text-base leading-8 text-[#6F565D]">{home.appIntro}</p>
           </div>
 
+          {/* True cost and profitability — three connected outcomes */}
+          <div className="mt-12 rounded-[2rem] border border-[#EADDE0] bg-[#FCF8F6] px-6 py-10 sm:px-10 sm:py-12">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#800020]">Costing · Pricing · Profit</p>
+            <h3 className={`${heading} mt-3 text-3xl font-semibold text-[#35121d] sm:text-4xl`}>From true cost to real profit.</h3>
+            <p className="mt-4 max-w-2xl text-base leading-8 text-[#6F565D]">Make every pricing decision with a clearer picture of what goes into your work and what comes back to your studio.</p>
+            <div className="mt-9 grid gap-4 md:grid-cols-3">
+              {[
+                { number: "01", title: "Know your true cost", text: "Account for fabric, wastage, labour, accessories, production expenses and your share of studio overhead." },
+                { number: "02", title: "Price with confidence", text: "Build quotes around your actual costs and desired profit, with a warning when a proposed price falls below cost." },
+                { number: "03", title: "Know what you earned", text: "See the profit or loss on each completed order, not just what the customer paid." },
+              ].map((item) => (
+                <article key={item.number} className="rounded-2xl border border-[#EADDE0] bg-white p-6">
+                  <span className="text-sm font-semibold text-[#A47B35]">{item.number}</span>
+                  <h4 className={`${heading} mt-4 text-2xl font-semibold text-[#35121d]`}>{item.title}</h4>
+                  <p className="mt-3 text-sm leading-7 text-[#6F565D]">{item.text}</p>
+                </article>
+              ))}
+            </div>
+            <p className={`${heading} mt-9 border-t border-[#EADDE0] pt-7 text-center text-2xl font-semibold text-[#800020] sm:text-3xl`}>Finish every order knowing whether you made money.</p>
+          </div>
+
           <div className="mt-14 grid gap-5 lg:grid-cols-6">
             <article className="flex flex-col rounded-[1.75rem] bg-[#F5ECE8] p-7 sm:p-9 lg:col-span-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
