@@ -276,6 +276,8 @@ export interface Settings {
   defaultMarkupPercent?: number;
   quoteGarmentLabour?: import("@/lib/quote-pricing").GarmentLabourRate[];
   quoteComplexityLevels?: import("@/lib/quote-pricing").QuoteComplexityLevel[];
+  quoteItemPresets?: { name: string; unitCost: number }[];
+  quoteExtraPresets?: { name: string; price: number; cost: number }[];
 }
 
 export interface Freelancer {

@@ -5,7 +5,7 @@ import { ShoppingBag, TrendingUp, Save } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { SavedQuotes } from "@/components/quotes/SavedQuotes";
-import { apiErrorMessage, apiGet, apiPost } from "@/lib/api";
+import { apiErrorMessage, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth } from "@/stores/auth";
 import type { Customer, Settings } from "@/lib/types";
 import { orderOverheadMargin, defaultMarkupPercent } from "@/lib/format";
@@ -114,18 +114,24 @@ export default function QuickQuote() {
   const [itemPresets, setItemPresets] = useState<{name:string;unitCost:number}[]>(STARTER_ITEMS);
   const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>(STARTER_EXTRAS);
   const shopName = useAuth(a => a.user?.shop?.name);
+  const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   useEffect(() => {
-    if (!shopName) return;
-    try {
-      const value = JSON.parse(localStorage.getItem("sewsiness-quote-presets:" + shopName) || "{}");
-      if (Array.isArray(value.items)) setItemPresets(mergeItemPresets(value.items.filter((x: {name?:unknown;unitCost?:unknown}) => typeof x.name === "string" && typeof x.unitCost === "number").slice(0,100)));
-      if (Array.isArray(value.extras)) setExtraPresets(mergeExtraPresets(value.extras.filter((x: {name?:unknown;price?:unknown;cost?:unknown}) => typeof x.name === "string" && typeof x.price === "number" && typeof x.cost === "number").slice(0,100)));
-    } catch { /* Invalid optional local presets do not prevent quoting. */ }
-  }, [shopName]);
+    if (!pricingSettings) return;
+    setItemPresets(mergeItemPresets(pricingSettings.quoteItemPresets ?? []));
+    setExtraPresets(mergeExtraPresets(pricingSettings.quoteExtraPresets ?? []));
+  }, [pricingSettings?.quoteItemPresets, pricingSettings?.quoteExtraPresets]);
   const savePresets = (savedItems: typeof itemPresets, savedExtras: typeof extraPresets) => {
-    if (!shopName) return;
-    try { localStorage.setItem("sewsiness-quote-presets:" + shopName, JSON.stringify({items:savedItems,extras:savedExtras})); }
-    catch { toast.error("Could not save suggestions on this device."); }
+    // Store only the requested category to avoid overwriting another device's changes.
+    // The server validates and isolates all values to the current studio.
+    return apiPatch<Settings>("/api/settings", {
+      quoteItemPresets: savedItems.slice(0, 100),
+      quoteExtraPresets: savedExtras.slice(0, 100),
+    }).then(() => {
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    }).catch((error: unknown) => {
+      toast.error(apiErrorMessage(error, "Could not save studio suggestions."));
+      qc.invalidateQueries({ queryKey: ["settings"] });
+    });
   };
   const removeSavedItem = () => {
     const name = itemName.trim().toLowerCase();
@@ -164,7 +170,6 @@ export default function QuickQuote() {
   const [discountPct, setDiscountPct] = useState(0);
   const [depositOverride, setDepositOverride] = useState<number | null>(null);
 
-  const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const garmentRates = useMemo(() => parseGarmentLabour(pricingSettings?.quoteGarmentLabour), [pricingSettings?.quoteGarmentLabour]);
   const complexityRates = useMemo(() => parseQuoteComplexities(pricingSettings?.quoteComplexityLevels), [pricingSettings?.quoteComplexityLevels]);
   const garmentDefault = garmentRates.find(x => x.name === garment)?.baseLabour ?? garmentRates[0]?.baseLabour ?? 0;
@@ -406,6 +411,8 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Other production items</h3>
+            <p className="text-xs text-stone-500">Choose a starter item or one saved for this studio. Enter its actual cost before adding.</p>
+            <select aria-label="Saved production items" className="w-full border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a saved item…</option>{itemPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</select>
             <p className="text-xs text-stone-500">Choose a starter item or one you saved on this device. Enter its actual cost before adding.</p>
             <select aria-label="Choose production item" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a production item…</option><optgroup label="Your saved items">{itemPresets.filter(x=>!STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup><optgroup label="Starter suggestions">{itemPresets.filter(x=>STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup></select>
             <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
@@ -416,6 +423,8 @@ export default function QuickQuote() {
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Optional extras</h3>
+            <p className="text-xs text-stone-500">Choose a starter extra or one saved for this studio, then set its price and cost. Only accepted extras affect the total and profit.</p>
+            <select aria-label="Saved extras" className="w-full border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose a saved extra…</option>{extraPresets.map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</select>
             <p className="text-xs text-stone-500">Choose a starter extra or one saved on this device, then set its price and cost. Only accepted extras affect the total and profit.</p>
             <select aria-label="Choose optional extra" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose an optional extra…</option><optgroup label="Your saved extras">{extraPresets.filter(x=>!STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup><optgroup label="Starter suggestions">{extraPresets.filter(x=>STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup></select>
             <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
