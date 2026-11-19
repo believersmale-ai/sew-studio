@@ -14,7 +14,7 @@ export async function GET(_req:Request,{params}:{params:Promise<{id:string}>}){
   const ids=[...new Set(lines.map(x=>x.item_id))];
   const items=ids.length?await ctx.db.from("inventory_items").select("id,name,unit").eq("shop_id",ctx.shopId).in("id",ids):null;
   if(items?.error)return Response.json({error:items.error.message},{status:500});
-  const names=new Map((items?.data??[]).map(x=>[x.id,x]));
+  const names=new Map<string,{name:string;unit:string}>((items?.data??[]).map(x=>[String(x.id),{name:String(x.name??"Stock item"),unit:String(x.unit??"")}]));
   const records=lines.map(x=>({
     id:x.id,itemId:x.item_id,name:names.get(x.item_id)?.name??"Stock item",
     unit:names.get(x.item_id)?.unit??"",type:x.movement_type,quantityDelta:Number(x.quantity_delta),
