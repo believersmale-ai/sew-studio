@@ -125,7 +125,12 @@ export default function NewOrder({ embedded = false, onClose, onCreated }: { emb
     mutationFn: () => {
       const body: Record<string, unknown> = {
         customerId,
-        quoteCostLines: params.quoteCostLines || undefined,
+        quoteCostLines: params.quoteCostLines || JSON.stringify([
+          { key: "materials", label: "Fabric / materials", amount: Math.max(0, Number(fabricCost) || 0) },
+          { key: "labour", label: "Labour", amount: Math.max(0, Number(labourCost) || 0) },
+          { key: "other", label: "Other production costs", amount: Math.max(0, Number(otherCost) || 0) },
+          { key: "overhead", label: "Studio overhead allocation", amount: overhead },
+        ]),
         quotedPrice: params.quotePrice || undefined,
         garmentDesign: garmentDesign.trim(),
         orderDate,
