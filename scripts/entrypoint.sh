@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 077
+ACTION="${MIGRATION_ACTION:-idle}"
+if [[ "$ACTION" == 'idle' ]]; then
+  echo 'Sewsiness migration service ready. No database operation selected.'
+  exec sleep infinity
+fi
 : "${SOURCE_DATABASE_URL:?Set SOURCE_DATABASE_URL in Railway Variables}"
 : "${TARGET_DATABASE_URL:?Set TARGET_DATABASE_URL in Railway Variables}"
 if [[ "$SOURCE_DATABASE_URL" == "$TARGET_DATABASE_URL" ]]; then echo 'ERROR: source and target URLs are identical' >&2; exit 2; fi
-ACTION="${MIGRATION_ACTION:-inspect}"
 DIR="${BACKUP_DIR:-/data}"
 mkdir -p "$DIR"
 check_conn() {
@@ -50,5 +54,5 @@ case "$ACTION" in
   pg_restore --exit-on-error --no-owner --no-acl --dbname="$TARGET_DATABASE_URL" "$file"
   echo 'RESTORE COMPLETE. Validate accounts, relationships and schema before deploying application.'
   ;;
- *) echo 'MIGRATION_ACTION must be inspect, backup, or restore' >&2; exit 2;;
+ *) echo 'MIGRATION_ACTION must be idle, inspect, backup, or restore' >&2; exit 2;;
 esac

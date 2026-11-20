@@ -1,3 +1,7 @@
+## Safe startup (no variables required)
+
+The default `MIGRATION_ACTION=idle` keeps the service running without connecting to either database. No Custom Start Command is needed; clear any prior override in Railway. To run a database operation, configure secure Railway variables and explicitly select `inspect`, `backup`, or `restore`. The restore action requires an empty target and confirmation. Do not expose credentials in GitHub.
+
 # Sewsiness — Railway-native PostgreSQL transfer worker
 
 **Safe by default.** The service starts in `inspect` mode. It never deletes tables. Restore is blocked unless the target has **zero non-system tables** and you explicitly confirm. The existing NEW Railway database shown in screenshots has 71 tables, so it **cannot be the restore target**.
