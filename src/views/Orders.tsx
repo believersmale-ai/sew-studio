@@ -163,7 +163,7 @@ export default function Orders() {
   };
 
   return (
-    <div className="p-5 md:p-8 max-w-[1300px] mx-auto w-full">
+    <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1300px] mx-auto w-full">
       <PageHeader
         eyebrow={scopeToMine ? "My work" : "Production"}
         eyebrowIcon={ShoppingBag}
@@ -190,7 +190,7 @@ export default function Orders() {
       )}
 
       {/* Premium stat strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="mb-6 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <PremiumMetric
           label="Total Orders"
           value={isLoading ? "—" : stats.total}
@@ -424,7 +424,7 @@ export default function Orders() {
                   <li key={o.id} className="md:border md:border-[#EEDFE3] md:rounded-lg md:overflow-hidden md:bg-white">
                     <button
                       onClick={() => go("order", { id: o.id })}
-                      className="w-full h-full text-left px-4 py-4 active:bg-[#FCF8F9] hover:bg-[#FCF8F9] transition-colors"
+                      className="w-full h-full min-w-0 text-left px-3 py-4 sm:px-4 active:bg-[#FCF8F9] hover:bg-[#FCF8F9] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#800020]"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -437,7 +437,7 @@ export default function Orders() {
                         </div>
                         <StatusBadge status={o.status} />
                       </div>
-                      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-stone-400">
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-stone-400">
                         <span className="tabular-nums">{invoiceNumber(o, invoicePrefix)}</span>
                         <span
                           className={cn(
@@ -450,16 +450,16 @@ export default function Orders() {
                         </span>
                       </div>
                       {canSeeMoney && (
-                        <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-md bg-[#FCF8F9] px-3 py-2 text-[12px] tabular-nums">
-                          <div>
+                        <div className="mt-2.5 grid grid-cols-2 gap-2 rounded-md bg-[#FCF8F9] px-3 py-2 text-[12px] tabular-nums min-[420px]:grid-cols-3">
+                          <div className="min-w-0">
                             <div className="text-[11px] uppercase tracking-wide text-stone-400">Amount</div>
                             <div className="font-medium text-[#2F151B]">{formatCurrency(o.sellingPrice)}</div>
                           </div>
-                          <div>
+                          <div className="min-w-0">
                             <div className="text-[11px] uppercase tracking-wide text-stone-400">Paid</div>
                             <div className="text-stone-600">{formatCurrency(o.paid)}</div>
                           </div>
-                          <div className="text-right">
+                          <div className="col-span-2 min-w-0 border-t border-[#EEDFE3] pt-2 text-left min-[420px]:col-span-1 min-[420px]:border-0 min-[420px]:pt-0 min-[420px]:text-right">
                             <div className="text-[11px] uppercase tracking-wide text-stone-400">Balance</div>
                             <div className={cn("font-semibold", settled ? "text-emerald-700" : balance > 0 ? "text-[#800020]" : "text-stone-400")}>
                               {settled ? "Settled" : formatCurrency(balance)}

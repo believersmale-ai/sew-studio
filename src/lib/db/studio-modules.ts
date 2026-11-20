@@ -17,7 +17,7 @@ export const dateOrNull = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2
 
 export const serializeItem = (i: Record<string, any>) => ({
   id: i.id, tripId: i.trip_id, description: i.description, plannedBefore: i.planned_before,
-  obtained: i.obtained, plannedCost: Number(i.planned_cost), actualCost: Number(i.actual_cost), orderId: i.order_id,
+  obtained: i.obtained, supplierName: i.supplier_name ?? "", receiptReference: i.receipt_reference ?? "", receiptImageUrl: i.receipt_image_url ?? "", plannedCost: Number(i.planned_cost), actualCost: Number(i.actual_cost), orderId: i.order_id,
 });
 export const serializeTrip = (t: Record<string, any>) => ({
   id: t.id, tripDate: t.trip_date, status: t.status, notes: t.notes ?? "", shopperId: t.shopper_id,

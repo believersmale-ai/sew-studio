@@ -243,7 +243,7 @@ export default function ProductionBoard() {
   const activeOrder = activeId ? flatOrders.get(activeId) : null;
 
   return (
-    <div className="p-5 md:p-8 w-full">
+    <div className="w-full px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader
         eyebrow="Live workflow"
         eyebrowIcon={LayoutGrid}

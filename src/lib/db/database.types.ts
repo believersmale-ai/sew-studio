@@ -11,6 +11,43 @@ export interface Database {
   __InternalSupabase: { PostgrestVersion: "12" };
   public: {
     Tables: {
+      inventory_items: {
+        Row: {
+          id: string; shop_id: string; name: string; sku: string | null; category: string;
+          unit: string; quantity: number; reorder_level: number; unit_cost: number;
+          location: string | null; supplier: string | null; notes: string | null;
+          created_at: string; updated_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["inventory_items"]["Row"]> & { shop_id: string; name: string };
+        Update: Partial<Database["public"]["Tables"]["inventory_items"]["Row"]>;
+        Relationships: [];
+      };
+      inventory_movements: {
+        Row: {
+          id: string; shop_id: string; item_id: string; movement_type: string;
+          quantity_delta: number; note: string | null; order_id: string | null; unit_cost_at_movement: number | null; created_at: string;
+        };
+        Insert: Partial<Database["public"]["Tables"]["inventory_movements"]["Row"]> & {
+          shop_id: string; item_id: string; movement_type: string; quantity_delta: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["inventory_movements"]["Row"]>;
+        Relationships: [];
+      };
+      order_cost_reconciliations: {
+        Row: {
+          order_id: string;
+          shop_id: string;
+          quote_id: Nullable<string>;
+          quoted_price: number;
+          estimated_lines: { key: string; label: string; amount: number }[];
+          actual_lines: Nullable<{ key: string; label: string; amount: number }[]>;
+          reconciled_at: Nullable<string>;
+          created_at: string;
+        };
+        Insert: Pick<Database["public"]["Tables"]["order_cost_reconciliations"]["Row"], "order_id" | "shop_id" | "quoted_price" | "estimated_lines"> & Partial<Database["public"]["Tables"]["order_cost_reconciliations"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["order_cost_reconciliations"]["Row"]>;
+        Relationships: [];
+      };
       shops: {
         Row: {
           id: string;
@@ -68,11 +105,51 @@ export interface Database {
         Update: Partial<Database["public"]["Tables"]["system_admins"]["Row"]>;
         Relationships: [];
       };
+      studio_invitations: {
+        Row: {
+          id: string;
+          shop_id: string;
+          email: string;
+          role: "madam" | "staff" | "freelancer" | "trainee" | "trainer";
+          token_hash: string;
+          invited_by: string;
+          status: "pending" | "accepted" | "revoked" | "expired";
+          expires_at: string;
+          accepted_by: Nullable<string>;
+          accepted_at: Nullable<string>;
+          created_at: string;
+        };
+        Insert: Pick<Database["public"]["Tables"]["studio_invitations"]["Row"], "shop_id" | "email" | "role" | "token_hash" | "invited_by" | "expires_at"> & Partial<Database["public"]["Tables"]["studio_invitations"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["studio_invitations"]["Row"]>;
+        Relationships: [];
+      };
+      studio_memberships: {
+        Row: {
+          id: string;
+          user_id: string;
+          shop_id: string;
+          role: "madam" | "staff" | "freelancer" | "trainee" | "trainer";
+          status: "active" | "removed";
+          can_access_orders: boolean;
+          can_access_board: boolean;
+          can_manage_freelancers: boolean;
+          joined_at: string;
+          removed_at: Nullable<string>;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: Pick<Database["public"]["Tables"]["studio_memberships"]["Row"], "user_id" | "shop_id" | "role"> & Partial<Database["public"]["Tables"]["studio_memberships"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["studio_memberships"]["Row"]>;
+        Relationships: [];
+      };
       profiles: {
         Row: {
           id: string;
           email: string;
           full_name: string;
+          certification: Nullable<string>;
+          years_experience: Nullable<number>;
+          country: Nullable<string>;
           role: "madam" | "staff" | "trainer" | "trainee";
           gender: Nullable<string>;
           phone: Nullable<string>;
@@ -126,6 +203,9 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
+          certification: Nullable<string>;
+          years_experience: Nullable<number>;
+          country: Nullable<string>;
           phone: Nullable<string>;
           specialty: Nullable<string>;
           skills: Nullable<string>;
@@ -687,6 +767,10 @@ export interface Database {
           invoice_prefix: string;
           overhead_recovery_basis: number;
           default_markup_percent: number;
+          quote_garment_labour: { name: string; baseLabour: number }[] | null;
+          quote_complexity_levels: { name: string; multiplier: number }[] | null;
+          quote_item_presets: { name: string; unitCost: number }[] | null;
+          quote_extra_presets: { name: string; price: number; cost: number }[] | null;
           created_at: string;
           updated_at: string;
         };

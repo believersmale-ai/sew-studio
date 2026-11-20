@@ -19,6 +19,13 @@ export async function PATCH(req: Request) {
   if ("phone" in body) data.phone = typeof body.phone === "string" && body.phone.trim() ? body.phone.trim() : null;
   if ("gender" in body) data.gender = typeof body.gender === "string" && body.gender.trim() ? body.gender.trim() : null;
 
+  if ("certification" in body) data.certification = typeof body.certification === "string" ? body.certification.trim().slice(0, 500) || null : null;
+  if ("country" in body) data.country = typeof body.country === "string" ? body.country.trim().slice(0, 100) || null : null;
+  if ("yearsExperience" in body) {
+    const years = body.yearsExperience === "" || body.yearsExperience == null ? null : Number(body.yearsExperience);
+    if (years !== null && (!Number.isInteger(years) || years < 0 || years > 80)) return NextResponse.json({ error: "Years of experience must be between 0 and 80." }, { status: 400 });
+    data.years_experience = years;
+  }
   if ("avatarUrl" in body) {
     const image = cleanImageRef(body.avatarUrl);
     if (image === undefined) {
@@ -46,7 +53,7 @@ export async function PATCH(req: Request) {
     .update(data)
     .eq("id", ctx.userId)
     .eq("shop_id", ctx.shopId)
-    .select("id, email, full_name, role, gender, phone, avatar_url, shop_id, can_access_orders, can_access_board, can_manage_freelancers, shop:shops(id, name, slug, currency, plan, trial_started_at, trial_ends_at)")
+    .select("id, email, full_name, role, gender, phone, avatar_url, shop_id, can_access_orders, can_access_board, can_manage_freelancers, certification, years_experience, country, shop:shops(id, name, slug, currency, plan, trial_started_at, trial_ends_at)")
     .single();
   if (error) {
     const friendly = identityErrorMessage(error);
@@ -63,6 +70,9 @@ export async function PATCH(req: Request) {
       gender: profile.gender,
       phone: profile.phone,
       avatarUrl: profile.avatar_url,
+      certification: profile.certification,
+      yearsExperience: profile.years_experience,
+      country: profile.country,
       shopId: profile.shop_id,
       shop: profile.shop,
       canAccessOrders: profile.can_access_orders,

@@ -23,6 +23,9 @@ export interface AuthUser {
   gender?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
+  certification?: string | null;
+  yearsExperience?: number | null;
+  country?: string | null;
   shopId: string;
   shop?: AuthShop | null;
   canAccessOrders?: boolean;
@@ -38,7 +41,7 @@ interface AuthState {
   status: Status;
   hydrate: () => Promise<void>;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<AuthUser>;
-  updateProfile: (patch: { fullName: string; phone: string | null; gender: string | null; avatarUrl?: string | null }) => Promise<AuthUser>;
+  updateProfile: (patch: { fullName: string; phone: string | null; gender: string | null; avatarUrl?: string | null; certification?: string | null; yearsExperience?: string | number | null; country?: string | null }) => Promise<AuthUser>;
   register: (data: {
     shopName: string;
     fullName: string;

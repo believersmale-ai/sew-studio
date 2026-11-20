@@ -30,6 +30,9 @@ interface ProfileDetails extends AuthUser {
   trainingDurationWeeks?: number | null;
   trainingStartedAt?: string | null;
   createdAt?: string;
+  certification?: string | null;
+  yearsExperience?: number | null;
+  country?: string | null;
 }
 
 const ROLE_NAMES: Record<string, string> = {
@@ -81,6 +84,9 @@ export default function UserProfile() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [gender, setGender] = useState("");
+  const [certification, setCertification] = useState("");
+  const [yearsExperience, setYearsExperience] = useState("");
+  const [country, setCountry] = useState("");
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarBroken, setAvatarBroken] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -111,6 +117,9 @@ export default function UserProfile() {
     setFullName(profileQuery.data.fullName || "");
     setPhone(profileQuery.data.phone || "");
     setGender(profileQuery.data.gender || "");
+    setCertification(profileQuery.data.certification || "");
+    setYearsExperience(profileQuery.data.yearsExperience?.toString() || "");
+    setCountry(profileQuery.data.country || "");
     setAvatarUrl(profileQuery.data.avatarUrl || "");
     setAvatarBroken(false);
   }, [profileQuery.data]);
@@ -120,7 +129,7 @@ export default function UserProfile() {
     setSaving(true);
     try {
       if (isSelf) {
-        await updateProfile({ fullName, phone: phone.trim() || null, gender: gender || null, avatarUrl: avatarUrl.trim() || null });
+        await updateProfile({ fullName, phone: phone.trim() || null, gender: gender || null, avatarUrl: avatarUrl.trim() || null, certification, yearsExperience, country });
       } else if (selectedId) {
         await apiPatch(`/api/users/${selectedId}`, {
           fullName,
@@ -184,7 +193,7 @@ export default function UserProfile() {
             </div>
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em] text-stone-400">Account</p>
-              <h1 className="font-display text-2xl font-semibold text-[#2F151B]">Profile</h1>
+              <h2 className="font-display text-2xl font-semibold text-[#2F151B]">Profile</h2>
             </div>
           </div>
           <SectionCard title="Profile unavailable">
@@ -227,7 +236,7 @@ export default function UserProfile() {
                 <p className="text-[11px] uppercase tracking-[0.18em] text-stone-400 mb-1">
                   {isSelf ? "My profile" : "Team profile"}
                 </p>
-                <h1 className="font-display text-2xl font-semibold text-[#2F151B] truncate">{profile.fullName}</h1>
+                <h2 className="font-display text-2xl font-semibold text-[#2F151B] truncate">{profile.fullName}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span
                     className="rounded-full border px-3 py-1 text-xs font-medium"
@@ -279,6 +288,9 @@ export default function UserProfile() {
                       <option value="Other">Other</option>
                     </select>
                   </label>
+                  <label className="text-xs font-medium text-stone-600">Certification / qualifications<input maxLength={500} value={certification} onChange={e=>setCertification(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /></label>
+                  <label className="text-xs font-medium text-stone-600">Years of experience<input type="number" min={0} max={80} value={yearsExperience} onChange={e=>setYearsExperience(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /></label>
+                  <label className="text-xs font-medium text-stone-600">Country of location<input maxLength={100} autoComplete="country-name" value={country} onChange={e=>setCountry(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /></label>
                   <div className="sm:col-span-2">
                     <p className="text-xs font-medium text-stone-600 mb-2">Profile picture</p>
                     <ImageUpload
@@ -303,6 +315,9 @@ export default function UserProfile() {
                   <div><dt className="text-[11px] uppercase tracking-[0.15em] text-stone-400">Email</dt><dd className="mt-1 text-sm text-[#2F151B]">{profile.email}</dd></div>
                   <div><dt className="text-[11px] uppercase tracking-[0.15em] text-stone-400">Phone</dt><dd className="mt-1 text-sm text-[#2F151B]">{profile.phone || "Not provided"}</dd></div>
                   <div><dt className="text-[11px] uppercase tracking-[0.15em] text-stone-400">Gender</dt><dd className="mt-1 text-sm text-[#2F151B]">{profile.gender || "Not provided"}</dd></div>
+                  <div><dt className="text-[11px] uppercase tracking-[0.15em] text-stone-400">Certification</dt><dd className="mt-1 text-sm text-[#2F151B]">{profile.certification || "Not provided"}</dd></div>
+                  <div><dt className="text-[11px] uppercase tracking-[0.15em] text-stone-400">Experience</dt><dd className="mt-1 text-sm text-[#2F151B]">{profile.yearsExperience == null ? "Not provided" : `${profile.yearsExperience} years`}</dd></div>
+                  <div><dt className="text-[11px] uppercase tracking-[0.15em] text-stone-400">Country</dt><dd className="mt-1 text-sm text-[#2F151B]">{profile.country || "Not provided"}</dd></div>
                 </dl>
               )}
             </SectionCard>

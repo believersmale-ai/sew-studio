@@ -380,6 +380,10 @@ export function serializeSettings(s: Record<string, any>) {
     invoicePrefix: s.invoice_prefix || "INV",
     overheadRecoveryBasis: s.overhead_recovery_basis,
     defaultMarkupPercent: s.default_markup_percent ?? 30,
+    quoteGarmentLabour: s.quote_garment_labour ?? undefined,
+    quoteComplexityLevels: s.quote_complexity_levels ?? undefined,
+    quoteItemPresets: s.quote_item_presets ?? undefined,
+    quoteExtraPresets: s.quote_extra_presets ?? undefined,
   };
 }
 

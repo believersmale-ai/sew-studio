@@ -66,7 +66,7 @@ export default function Projection() {
   }, [orders, settings]);
 
   if (!canSee) return (
-    <div className="mx-auto w-full max-w-[820px] p-5 md:p-8">
+    <div className="mx-auto w-full max-w-[820px] px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader eyebrow="Money" eyebrowIcon={CircleDollarSign} title="Business Projection" />
       <SectionCard><EmptyState icon={Lock} title="Projection is for the studio owner" description="Business figures are only shown to the owner." /></SectionCard>
     </div>
@@ -76,7 +76,7 @@ export default function Projection() {
   const marginPercent = projection.booked > 0 ? Math.round((projection.grossMargin / projection.booked) * 100) : 0;
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] p-5 md:p-8">
+    <div className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader eyebrow="Financial overview" eyebrowIcon={CircleDollarSign} title="Business Projection" subtitle="A forward-looking view of booked work, money still due, production costs and what the studio may retain." />
 
       {isLoading ? (

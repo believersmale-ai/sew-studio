@@ -9,17 +9,6 @@ async function post_impl(req: Request, { params }: { params: Promise<{ id: strin
   if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
-  const { rows: me } = await getPool().query(
-    `select verified_at from public.freelancer_profiles where id = $1`,
-    [ctx.freelancerId]
-  );
-  if (!me[0]?.verified_at) {
-    return Response.json(
-      { error: "Verify your email to apply for jobs. Check your inbox for the link, or request a new one from your portal." },
-      { status: 403 }
-    );
-  }
-
   const body = await req.json().catch(() => ({}));
   const message = String(body?.message ?? "").trim().slice(0, 1000) || null;
   const cost = body?.proposedCost === "" || body?.proposedCost == null ? null : Number(body.proposedCost);

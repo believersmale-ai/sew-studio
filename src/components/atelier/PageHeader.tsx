@@ -3,13 +3,11 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Standard page header with a clear title, context, and optional actions.
+ * The AppShell top bar is the single source of page title, studio context,
+ * and account identity. Individual views use PageHeader only for actions.
+ * Retain the existing props so all views continue to compile unchanged.
  */
 export function PageHeader({
-  eyebrow,
-  eyebrowIcon: Icon,
-  title,
-  subtitle,
   actions,
   className,
 }: {
@@ -20,26 +18,10 @@ export function PageHeader({
   actions?: React.ReactNode;
   className?: string;
 }) {
+  if (!actions) return null;
   return (
-    <div className={cn("flex flex-col items-start text-left md:flex-row md:items-end md:justify-between gap-4 md:gap-8 mb-5 md:mb-6 md:pb-5 md:border-b md:border-[#E6D4D8]", className)}>
-      <div className="min-w-0 w-full md:w-auto">
-        {eyebrow && (
-          <p className="text-xs font-medium text-slate-500 mb-1.5 flex items-center gap-2">
-            {Icon ? <Icon className="w-3.5 h-3.5 text-slate-500" /> : null}
-            {eyebrow}
-          </p>
-        )}
-        <h1
-          className="font-semibold text-[#3B0010] leading-tight tracking-tight"
-          style={{ fontSize: "clamp(24px, 2.5vw, 30px)" }}
-        >
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-sm leading-relaxed text-slate-600 mt-1.5 max-w-2xl">{subtitle}</p>
-        )}
-      </div>
-      {actions && <div className="flex flex-wrap items-center justify-start md:justify-end gap-2 md:shrink-0 w-full md:w-auto max-sm:[&>button]:flex-1 max-sm:[&>a]:flex-1">{actions}</div>}
+    <div className={cn("flex w-full flex-wrap items-center justify-end gap-2 mb-5 md:mb-6 max-sm:[&>button]:flex-1 max-sm:[&>a]:flex-1", className)}>
+      {actions}
     </div>
   );
 }

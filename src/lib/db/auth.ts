@@ -175,6 +175,29 @@ export class AuthApi {
     return { data: { user }, error: null };
   }
 
+  /**
+   * Resolve the selected studio from the same authenticated session cookie.
+   * No client-supplied shop ID is trusted. A removed membership or suspended
+   * studio causes the selection to resolve to null.
+   */
+  async lookupActiveShopId(): Promise<string | null> {
+    const token = this.currentToken();
+    if (!token) return null;
+    const { rows } = await getPool().query(
+      `select m.shop_id
+         from private.sessions sess
+         join public.studio_memberships m
+           on m.user_id=sess.user_id and m.shop_id=sess.active_shop_id
+         join public.shops sh on sh.id=m.shop_id
+        where sess.token_hash=$1 and sess.expires_at>now()
+          and m.status='active' and sh.suspended_at is null
+          and exists (select 1 from auth.users u where u.id=sess.user_id
+              and (u.banned_until is null or u.banned_until<=now()))`,
+      [sha256(token)]
+    );
+    return rows[0]?.shop_id ?? null;
+  }
+
   /** Resolve the signed-in user from the session cookie, or null. */
   async lookup(): Promise<AuthUser | null> {
     const token = this.currentToken();

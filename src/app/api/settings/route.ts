@@ -1,3 +1,4 @@
+import { parseGarmentLabour, parseQuoteComplexities, validateQuotePricing } from "@/lib/quote-pricing";
 import { getTenant } from "@/lib/db/session";
 import type { Database } from "@/lib/db/database.types";
 import { serializeSettings } from "@/lib/db/serializers";
@@ -35,6 +36,9 @@ export async function PATCH(req: Request) {
     if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json();
+    if (("quoteGarmentLabour" in body || "quoteComplexityLevels" in body || "quoteItemPresets" in body || "quoteExtraPresets" in body) && ctx.role !== "madam") {
+      return Response.json({ error: "Only the studio owner can change quote pricing defaults." }, { status: 403 });
+    }
 
     let { data: settings } = await ctx.db
       .from("settings")
@@ -75,6 +79,45 @@ export async function PATCH(req: Request) {
     };
     for (const [key, column] of Object.entries(numericFieldMap)) {
       if (key in body) data[column] = Number(body[key]) || 0;
+    }
+
+    if ("quoteGarmentLabour" in body || "quoteComplexityLevels" in body) {
+      const garmentRaw = body.quoteGarmentLabour;
+      const levelRaw = body.quoteComplexityLevels;
+      if (!Array.isArray(garmentRaw) || !Array.isArray(levelRaw) ||
+          garmentRaw.some((x: any) => typeof x?.name !== "string" || !x.name.trim() || x.name.trim().length > 80 || typeof x.baseLabour !== "number" || !Number.isFinite(x.baseLabour) || x.baseLabour < 0 || x.baseLabour > 10000000) ||
+          levelRaw.some((x: any) => typeof x?.name !== "string" || !x.name.trim() || x.name.trim().length > 80 || typeof x.multiplier !== "number" || !Number.isFinite(x.multiplier) || x.multiplier <= 0 || x.multiplier > 100)) {
+        return Response.json({ error: "Invalid garment price or complexity multiplier." }, { status: 400 });
+      }
+      const garments = parseGarmentLabour(garmentRaw);
+      const levels = parseQuoteComplexities(levelRaw);
+      const invalid = validateQuotePricing(garments, levels);
+      if (invalid) return Response.json({ error: invalid }, { status: 400 });
+      data.quote_garment_labour = garments;
+      data.quote_complexity_levels = levels;
+    }
+
+    // Shared quote suggestions: validated, owner-managed and tenant-scoped.
+    if ("quoteItemPresets" in body) {
+      const entries = body.quoteItemPresets;
+      if (!Array.isArray(entries) || entries.length > 100 ||
+          entries.some((x: {name?: unknown;unitCost?: unknown}) =>
+            typeof x?.name !== "string" || !x.name.trim() || x.name.length > 80 ||
+            typeof x.unitCost !== "number" || !Number.isFinite(x.unitCost) || x.unitCost < 0 || x.unitCost > 10000000) ||
+          new Set(entries.map((x: {name: string}) => x.name.trim().toLowerCase())).size !== entries.length)
+        return Response.json({ error: "Invalid saved production item suggestions." }, { status: 400 });
+      data.quote_item_presets = entries.map((x: {name:string;unitCost:number}) => ({name:x.name.trim(),unitCost:x.unitCost}));
+    }
+    if ("quoteExtraPresets" in body) {
+      const entries = body.quoteExtraPresets;
+      if (!Array.isArray(entries) || entries.length > 100 ||
+          entries.some((x: {name?: unknown;price?: unknown;cost?: unknown}) =>
+            typeof x?.name !== "string" || !x.name.trim() || x.name.length > 80 ||
+            typeof x.price !== "number" || !Number.isFinite(x.price) || x.price < 0 || x.price > 10000000 ||
+            typeof x.cost !== "number" || !Number.isFinite(x.cost) || x.cost < 0 || x.cost > 10000000) ||
+          new Set(entries.map((x: {name: string}) => x.name.trim().toLowerCase())).size !== entries.length)
+        return Response.json({ error: "Invalid saved optional extra suggestions." }, { status: 400 });
+      data.quote_extra_presets = entries.map((x: {name:string;price:number;cost:number}) => ({name:x.name.trim(),price:x.price,cost:x.cost}));
     }
 
     // Business policies — clamped to sane ranges so a stray keystroke

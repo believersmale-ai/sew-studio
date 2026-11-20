@@ -12,6 +12,9 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * exactly as it was before.
  */
 export class DbClient implements Executor {
+  /** Only set from a server-verified session, never from request parameters. */
+  activeShopId: string | null = null;
+
   constructor(public role: DbRole, public userId: string | null = null) {}
 
   from(table: string) {
@@ -21,14 +24,20 @@ export class DbClient implements Executor {
   async run(sql: string, params: unknown[]): Promise<Record<string, any>[]> {
     let role = this.role;
     let uid = "";
+    let activeShop = "";
     if (role === "authenticated") {
-      if (this.userId && UUID.test(this.userId)) uid = this.userId;
-      else role = "anon";
+      if (this.userId && UUID.test(this.userId)) {
+        uid = this.userId;
+        if (this.activeShopId && UUID.test(this.activeShopId)) activeShop = this.activeShopId;
+      } else role = "anon";
     }
     const client = await getPool().connect();
     try {
       // role is one of three fixed names; uid is validated as a UUID above.
       await client.query(`begin; set local role ${role}; select set_config('app.user_id', '${uid}', true)`);
+      // The value is transaction-local and cannot leak through pooled connections.
+      // Existing RLS still uses profiles.shop_id until the complete policy migration.
+      await client.query("select set_config('app.active_shop_id', $1, true)", [activeShop]);
       const res = await client.query(sql, params as any[]);
       await client.query("commit");
       return res.rows;

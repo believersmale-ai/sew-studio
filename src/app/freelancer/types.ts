@@ -6,6 +6,9 @@ export interface FreelancerProfile {
   specialty?: string | null;
   skills?: string | null;
   verified?: boolean;
+  certification?: string | null;
+  yearsExperience?: number | null;
+  country?: string | null;
 }
 
 export interface FreelanceJob {

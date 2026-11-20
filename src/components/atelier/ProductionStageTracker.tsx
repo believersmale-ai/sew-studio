@@ -82,6 +82,9 @@ export function ProductionStageTracker({
                     </button>
                     <span className="min-w-0 flex-1">
                       <span className={cn("block leading-tight", state === "skipped" && "line-through")}>{stage}</span>
+                      {stage === "Embellishments & Ornamentation" && (
+                        <span className="block text-[11px] font-normal leading-tight text-stone-500">Beading, embroidery, sequins, appliqué and other decorative work · optional</span>
+                      )}
                       {(detail || state === "current" || state === "skipped") && (
                         <span className="block text-[11px] font-normal leading-tight opacity-80">
                           {state === "current" ? "Working on now" : state === "skipped" ? `Not needed${detail ? ` · ${detail}` : ""}` : detail}

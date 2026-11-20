@@ -12,16 +12,16 @@ async function get_impl(req: Request) {
 
   const q = (new URL(req.url).searchParams.get("q") || "").trim().slice(0, 80);
   const { rows } = await getPool().query(
-    `select p.id, p.full_name, p.specialty, p.skills, (l.id is not null) as linked
+    `select p.id, p.full_name, p.specialty, p.skills, p.certification, p.years_experience, p.country, (l.id is not null) as linked
        from public.freelancer_profiles p
        left join public.freelancer_shop_links l on l.freelancer_id = p.id and l.shop_id = $1
-      where p.verified_at is not null and ($2::text = '' or p.full_name ilike '%' || $2::text || '%' or p.specialty ilike '%' || $2::text || '%' or p.skills ilike '%' || $2::text || '%')
+      where ($2::text = '' or p.full_name ilike '%' || $2::text || '%' or p.specialty ilike '%' || $2::text || '%' or p.skills ilike '%' || $2::text || '%')
       order by p.full_name
       limit 200`,
     [ctx.shopId, q]
   );
   return Response.json(
-    rows.map((r) => ({ id: r.id, name: r.full_name, specialty: r.specialty, skills: r.skills, linked: r.linked, verified: true }))
+    rows.map((r) => ({ id: r.id, name: r.full_name, specialty: r.specialty, skills: r.skills, certification: r.certification, yearsExperience: r.years_experience, country: r.country, linked: r.linked, verified: true }))
   );
 }
 
@@ -35,7 +35,7 @@ async function post_impl(req: Request) {
   const freelancerId = typeof body?.freelancerId === "string" ? body.freelancerId : "";
   const { rowCount } = await getPool().query(
     `insert into public.freelancer_shop_links (shop_id, freelancer_id)
-     select $1, id from public.freelancer_profiles where id = $2 and verified_at is not null
+     select $1, id from public.freelancer_profiles where id = $2
      on conflict (shop_id, freelancer_id) do nothing`,
     [ctx.shopId, freelancerId]
   ).catch(() => ({ rowCount: 0 }));
@@ -43,7 +43,7 @@ async function post_impl(req: Request) {
     `select 1 from public.freelancer_shop_links where shop_id = $1 and freelancer_id = $2`,
     [ctx.shopId, freelancerId]
   ).catch(() => ({ rows: [] as unknown[] }));
-  if (!rows.length) return Response.json({ error: "Freelancer not found or not yet verified." }, { status: 404 });
+  if (!rows.length) return Response.json({ error: "Freelancer not found." }, { status: 404 });
   return Response.json({ ok: true, added: (rowCount ?? 0) > 0 });
 }
 
