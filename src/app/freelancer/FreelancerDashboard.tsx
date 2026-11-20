@@ -10,7 +10,6 @@ import { PremiumMetric } from "@/components/atelier/PremiumMetric";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
 import { StatusBadge } from "@/components/atelier/StatusBadge";
 import { VerifiedBadge } from "@/components/atelier/VerifiedBadge";
-import { VerifyBanner } from "./VerifyBanner";
 import { EmptyState } from "@/components/atelier/EmptyState";
 import { apiGet, apiPatch, apiPost, setOnSessionExpired } from "@/lib/api";
 import { apiErrorMessage } from "@/lib/api";
@@ -119,12 +118,11 @@ export function FreelancerDashboard({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 animate-fade-in">
-        {!profile.verified && <VerifyBanner onVerified={onProfileChange} />}
         {tab === "jobs" && <MyJobs profile={profile} onBrowse={() => setTab("open")} />}
         {tab === "open" && (
           <>
             <PageHeader eyebrow="Find work" title="Open jobs" subtitle="Jobs studios have posted. Apply with your price and a short note — no roster invitation needed." />
-            <OpenJobsPanel canApply={!!profile.verified} />
+            <OpenJobsPanel canApply />
           </>
         )}
         {tab === "profile" && <ProfilePanel profile={profile} onChange={onProfileChange} onLogout={logout} />}
