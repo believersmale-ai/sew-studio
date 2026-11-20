@@ -26,6 +26,9 @@ export function ProfilePanel({
   const [phone, setPhone] = useState(profile.phone ?? "");
   const [specialty, setSpecialty] = useState(profile.specialty ?? "");
   const [skills, setSkills] = useState(profile.skills ?? "");
+  const [certification, setCertification] = useState(profile.certification ?? "");
+  const [yearsExperience, setYearsExperience] = useState(profile.yearsExperience?.toString() ?? "");
+  const [country, setCountry] = useState(profile.country ?? "");
   const [saving, setSaving] = useState(false);
 
   const [current, setCurrent] = useState("");
@@ -37,7 +40,7 @@ export function ProfilePanel({
     e.preventDefault();
     setSaving(true);
     try {
-      const updated = await apiPatch<FreelancerProfile>("/api/freelancer-auth/me", { fullName, phone, specialty, skills });
+      const updated = await apiPatch<FreelancerProfile>("/api/freelancer-auth/me", { fullName, phone, specialty, skills, certification, yearsExperience, country });
       onChange(updated);
       toast.success("Profile saved.");
     } catch (err) {
@@ -70,7 +73,7 @@ export function ProfilePanel({
         <SectionCard>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h3 className="text-sm font-semibold text-[#2F151B]">Public profile</h3>
-            {profile.verified ? <VerifiedBadge /> : <span className="text-xs text-amber-700">Email not verified</span>}
+
           </div>
           <form onSubmit={saveProfile} className="space-y-4">
             <div><label className={label} htmlFor="p-name">Full name</label>
@@ -88,6 +91,8 @@ export function ProfilePanel({
             </div>
             <div><label className={label} htmlFor="p-skills">Skills</label>
               <input id="p-skills" className={input} value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="e.g. hand beading, gele tying" maxLength={300} /></div>
+            <div><label className={label} htmlFor="p-cert">Certification / qualifications</label><input id="p-cert" className={input} maxLength={500} value={certification} onChange={e=>setCertification(e.target.value)} placeholder="e.g. Diploma in Fashion Design" /></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><div><label className={label} htmlFor="p-exp">Years of experience</label><input id="p-exp" type="number" min={0} max={80} className={input} value={yearsExperience} onChange={e=>setYearsExperience(e.target.value)} /></div><div><label className={label} htmlFor="p-country">Country of location</label><input id="p-country" className={input} maxLength={100} autoComplete="country-name" value={country} onChange={e=>setCountry(e.target.value)} placeholder="e.g. Ghana" /></div></div>
             <PremiumButton type="submit" loading={saving}>Save changes</PremiumButton>
           </form>
         </SectionCard>

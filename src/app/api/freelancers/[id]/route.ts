@@ -35,11 +35,11 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { rateNotes, status, fullName, phone, specialty, skills } = body || {};
+    const { rateNotes, status, fullName, phone, specialty, skills, certification, yearsExperience, country } = body || {};
 
     // A freelancer's profile (name, phone, specialty, skills) belongs to the freelancer.
     // Studios, including owners, may only manage their own working terms with them.
-    if (fullName !== undefined || phone !== undefined || specialty !== undefined || skills !== undefined) {
+    if (fullName !== undefined || phone !== undefined || specialty !== undefined || skills !== undefined || certification !== undefined || yearsExperience !== undefined || country !== undefined) {
       return Response.json(
         { error: "Only the freelancer can edit their own profile. You can update your rate notes and their status." },
         { status: 403 }
@@ -51,7 +51,7 @@ export async function PATCH(
     if (status !== undefined) data.status = status;
 
     const linkSelect =
-      "*, freelancer:freelancer_profiles(id, full_name, email, phone, specialty, skills)";
+      "*, freelancer:freelancer_profiles(id, full_name, email, phone, specialty, skills, certification, years_experience, country)";
     const { data: updated, error } =
       Object.keys(data).length > 0
         ? await ctx.db
@@ -77,6 +77,9 @@ export async function PATCH(
       phone: row.freelancer?.phone,
       specialty: row.freelancer?.specialty,
       skills: row.freelancer?.skills,
+      certification: row.freelancer?.certification,
+      yearsExperience: row.freelancer?.years_experience,
+      country: row.freelancer?.country,
       rateNotes: row.rate_notes,
       status: row.status,
     });

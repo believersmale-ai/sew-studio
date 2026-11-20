@@ -71,7 +71,7 @@ export function FreelancerLogin({ onLoggedIn }: { onLoggedIn: (p: FreelancerProf
           });
       toast.success(
         registering
-          ? "Welcome aboard! Check your email to verify your account and get your badge."
+          ? "Welcome aboard! Your freelancer account is ready."
           : `Welcome back, ${res.freelancer.fullName.split(" ")[0]}.`
       );
       onLoggedIn(res.freelancer);
