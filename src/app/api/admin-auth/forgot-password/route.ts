@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   try {
     const db = getPool();
     const { rows } = await db.query(
-      `select u.id from auth.users u join public.system_admins sa on sa.user_id = u.id where lower(u.email) = $1 and u.is_active = true limit 1`,
+      `select u.id from auth.users u join public.system_admins sa on sa.id = u.id where lower(u.email) = $1 and (u.banned_until is null or u.banned_until <= now()) and sa.disabled_at is null limit 1`,
       [email],
     );
     if (rows.length) {
