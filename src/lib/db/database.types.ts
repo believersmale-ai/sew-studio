@@ -147,6 +147,9 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
+          certification: Nullable<string>;
+          years_experience: Nullable<number>;
+          country: Nullable<string>;
           role: "madam" | "staff" | "trainer" | "trainee";
           gender: Nullable<string>;
           phone: Nullable<string>;
@@ -200,6 +203,9 @@ export interface Database {
           id: string;
           email: string;
           full_name: string;
+          certification: Nullable<string>;
+          years_experience: Nullable<number>;
+          country: Nullable<string>;
           phone: Nullable<string>;
           specialty: Nullable<string>;
           skills: Nullable<string>;
