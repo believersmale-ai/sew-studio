@@ -12,7 +12,7 @@ async function get_impl(req: Request) {
 
   const q = (new URL(req.url).searchParams.get("q") || "").trim().slice(0, 80);
   const { rows } = await getPool().query(
-    `select p.id, p.full_name, p.specialty, p.skills, (l.id is not null) as linked
+    `select p.id, p.full_name, p.specialty, p.skills, p.certification, p.years_experience, p.country, (l.id is not null) as linked
        from public.freelancer_profiles p
        left join public.freelancer_shop_links l on l.freelancer_id = p.id and l.shop_id = $1
       where ($2::text = '' or p.full_name ilike '%' || $2::text || '%' or p.specialty ilike '%' || $2::text || '%' or p.skills ilike '%' || $2::text || '%')
@@ -21,7 +21,7 @@ async function get_impl(req: Request) {
     [ctx.shopId, q]
   );
   return Response.json(
-    rows.map((r) => ({ id: r.id, name: r.full_name, specialty: r.specialty, skills: r.skills, linked: r.linked, verified: true }))
+    rows.map((r) => ({ id: r.id, name: r.full_name, specialty: r.specialty, skills: r.skills, certification: r.certification, yearsExperience: r.years_experience, country: r.country, linked: r.linked, verified: true }))
   );
 }
 
