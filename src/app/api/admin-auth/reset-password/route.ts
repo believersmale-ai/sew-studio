@@ -20,8 +20,8 @@ export async function POST(request: Request) {
     const { rows } = await client.query(
       `select t.id, t.admin_id from private.admin_password_reset_tokens t
        join auth.users u on u.id = t.admin_id
-       join public.system_admins sa on sa.user_id = u.id
-       where t.token_hash = $1 and t.used_at is null and t.expires_at > now() and u.is_active = true
+       join public.system_admins sa on sa.id = u.id
+       where t.token_hash = $1 and t.used_at is null and t.expires_at > now() and (u.banned_until is null or u.banned_until <= now()) and sa.disabled_at is null
        for update of t`,
       [digest],
     );
