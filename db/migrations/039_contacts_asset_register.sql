@@ -8,7 +8,7 @@ alter table public.system_menu_settings
   add constraint system_menu_settings_menu_key_check check (menu_key in (
     'dashboard', 'customers', 'orders', 'board', 'fittings', 'tasks',
     'quote', 'costing', 'payments', 'projection', 'accra-runs', 'assets',
-    'contacts', 'asset-register',
+    'contacts', 'asset-register', 'webinars',
     'style-assist', 'team', 'community', 'curriculum',
     'progress', 'portfolio', 'certificate', 'messages', 'my-jobs', 'settings'
   ));
