@@ -1,62 +1,27 @@
-# Base44 Project
+## Safe startup (no variables required)
 
-Use this repository to run and edit the app locally, then publish changes back through Base44.
+The default `MIGRATION_ACTION=idle` keeps the service running without connecting to either database. No Custom Start Command is needed; clear any prior override in Railway. To run a database operation, configure secure Railway variables and explicitly select `inspect`, `backup`, or `restore`. The restore action requires an empty target and confirmation. Do not expose credentials in GitHub.
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+# Sewsiness — Railway-native PostgreSQL transfer worker
 
-## Prerequisites
+**Safe by default.** The service starts in `inspect` mode. It never deletes tables. Restore is blocked unless the target has **zero non-system tables** and you explicitly confirm. The existing NEW Railway database shown in screenshots has 71 tables, so it **cannot be the restore target**.
 
-1. Clone the repository using the project's Git URL.
-2. Navigate to the project directory.
-3. Install dependencies: `npm install`.
-4. Install the Base44 CLI: `npm install -g base44@latest`.
-5. Install [Deno](https://docs.deno.com/runtime/getting_started/installation/) — the local Base44 backend runs on it.
+## Setup
+1. Keep the old production database untouched. Create a **third, fresh, empty PostgreSQL service** for the restored copy in Railway. Do not point the worker at the currently initialized 71-table database.
+2. Add this folder to a GitHub repository you control. Deploy it as a **temporary separate Railway service** using the included Dockerfile (set the service root directory to this folder, or make its contents the repository root). Do **not** replace the normal Sewsiness web app's start command.
+3. Add a **persistent Railway volume mounted at `/data`** to this migration service before making backups. Backups in the container without a volume can disappear on redeploy. Securely copy backups off Railway for durable recovery.
+4. Set `SOURCE_DATABASE_URL` to the OLD Railway PostgreSQL connection string and `TARGET_DATABASE_URL` to the **fresh empty** database's connection string. Use Railway variable references where supported. When projects differ, a private hostname may not resolve across projects; use the external connection URL with TLS as required. Never commit secrets or paste them in chat.
+5. Set `MIGRATION_ACTION=inspect`, deploy, and read logs. Check database identities carefully; both databases may be named `railway` and use user `postgres`, so use Railway service identities as well.
+6. Change to `MIGRATION_ACTION=backup` and redeploy the worker. It writes `/data/sewsiness-<timestamp>.dump` and a manifest. **Do not proceed until you have a verified recoverable backup** (ideally copied to separate secure storage).
+7. To test restore: set `MIGRATION_ACTION=restore`, `BACKUP_FILE=/data/<exact-backup-filename>.dump`, `RESTORE_CONFIRM=RESTORE_TO_NEW_EMPTY_DATABASE`, and redeploy. Restore only into a **verified empty** target. If the restore fails, stop and investigate; do not retry against a partly restored database.
+8. Compare all table row counts and relationships with source; check the application auth schema, especially `auth.users` / `private.credentials` vs `public.app_credentials`, before routing the new app to this restored DB.
+9. For final cutover, stop writes/background jobs on the old deployment, take a **fresh final backup**, restore to a new empty target, verify, then update the new web app's `DATABASE_URL` and other auth/storage/payment variables. Do not run two writable deployments against diverging databases.
 
-Run `base44 --help` (or see the [CLI reference](https://docs.base44.com/developers/references/cli/commands/introduction)) for the full command surface.
-
-## Run Locally
-
-Three commands, from the project root:
-
-```bash
-base44 login   # one-time per machine
-base44 link    # one-time per clone
-base44 dev     # local backend + frontend together
-```
-
-Open the frontend URL that `base44 dev` prints (typically `http://localhost:5173`).
-
-Notes:
-
-- **Every fresh clone needs `base44 link`.** It writes `base44/.app.jsonc` (the app-id pointer), which is deliberately gitignored. Your app id is in the Builder URL (`app.base44.com/apps/<id>/...`); `base44 link --help` shows the non-interactive flags.
-- **`base44 dev` runs the frontend for you** (via `site.serveCommand` in this repo's `base44/config.jsonc`) — never run `npm run dev` yourself: alone it serves a UI with no backend behind it (`[base44] Proxy not enabled`, every `/api` call fails), and alongside `base44 dev` the second Vite silently takes the next port and you end up looking at the wrong one.
-- **The app must be published at least once for the UI to load under `base44 dev`.** The frontend boots by fetching app settings from the hosted app; before the first publish that fails and every page redirects to login. The local API works regardless.
-- Entities, functions, and auth run locally — entity data is **in-memory only**, wiped when `base44 dev` restarts. Everything else (Core integrations, OAuth login) is forwarded to your deployed app. Full breakdown: [Local development overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview).
-
-## Frontend Only, Hosted Backend
-
-To work on just the frontend against your app's live hosted backend:
-
-```bash
-base44 dev --remote
-```
-
-⚠️ In this mode writes go to your app's **production data** — plain `base44 dev` keeps everything local.
-
-## Publish Your Changes
-
-After pushing your changes to git, open the Base44 dashboard and publish the app:
-
-```bash
-base44 dashboard open
-```
-
-This repo syncs to Base44 through git, so publish from the dashboard rather than `base44 deploy` — a CLI deploy ships your local tree directly, bypassing the sync, and the deployed state silently diverges from the repo.
-
-## Docs & Support
-
-GitHub integration: [https://docs.base44.com/developers/app-code/local-development/github](https://docs.base44.com/developers/app-code/local-development/github)
-
-Local development: [https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview](https://docs.base44.com/developers/backend/overview/local-dev/local-development-overview)
-
-Support: [https://app.base44.com/support](https://app.base44.com/support)
+## Safety / limitations
+- **No backup or migration has been executed** by preparing this package.
+- Database dump covers PostgreSQL data, not external uploads, email providers, payment gateways, or third-party storage.
+- Use a PostgreSQL client version compatible with the source and target server. Dockerfile currently uses PostgreSQL 17 tools; check `SHOW server_version;` first. If the source is newer, update the image tag before backup.
+- `pg_control_system()` can require permissions depending on PostgreSQL configuration. If inspect fails with permissions error, stop and request an adjusted identity check; do not remove identity safety checks casually.
+- `pg_restore` may need extension/ownership privileges. Review failures rather than applying destructive options.
+- Avoid leaving `RESTORE_CONFIRM` set after the test; reset to `inspect` and remove the confirmation variable.
+- This is a **one-shot migration worker**, not a scheduled job. It exits after each action; Railway may show the service as stopped/completed. Configure restart policy to never restart automatically for this temporary worker.
