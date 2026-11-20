@@ -14,7 +14,7 @@ export async function GET(
   const { id } = await params;
   const { data: profile } = await ctx.db
     .from("profiles")
-    .select("id, email, full_name, role, gender, phone, avatar_url, shop_id, mentor_id, training_duration_weeks, training_started_at, program_id, created_at")
+    .select("id, email, full_name, role, gender, phone, avatar_url, certification, years_experience, country, shop_id, mentor_id, training_duration_weeks, training_started_at, program_id, created_at")
     .eq("id", id)
     .eq("shop_id", ctx.shopId)
     .maybeSingle();
@@ -37,6 +37,9 @@ export async function GET(
     gender: profile.gender,
     phone: profile.phone,
     avatarUrl: profile.avatar_url,
+    certification: profile.certification,
+    yearsExperience: profile.years_experience,
+    country: profile.country,
     shopId: profile.shop_id,
     mentorId: profile.mentor_id,
     trainingDurationWeeks: profile.training_duration_weeks,
@@ -90,6 +93,9 @@ export async function PATCH(
       phone,
       gender,
       avatarUrl,
+      certification,
+      yearsExperience,
+      country,
       canAccessOrders,
       canAccessBoard,
       canManageFreelancers,
@@ -141,6 +147,13 @@ export async function PATCH(
       }
     }
     if (gender !== undefined) data.gender = gender || null;
+    if (certification !== undefined) data.certification = String(certification ?? "").trim().slice(0, 500) || null;
+    if (country !== undefined) data.country = String(country ?? "").trim().slice(0, 100) || null;
+    if (yearsExperience !== undefined) {
+      const years = yearsExperience === "" || yearsExperience == null ? null : Number(yearsExperience);
+      if (years !== null && (!Number.isInteger(years) || years < 0 || years > 80)) return Response.json({ error: "Years of experience must be between 0 and 80." }, { status: 400 });
+      data.years_experience = years;
+    }
     if (avatarUrl !== undefined) {
       const image = cleanImageRef(avatarUrl);
       if (image === undefined) {
@@ -167,7 +180,7 @@ export async function PATCH(
       .update(data)
       .eq("id", id)
       .select(
-        "id, email, full_name, role, gender, phone, avatar_url, shop_id, mentor_id, training_duration_weeks, training_started_at, program_id, can_access_orders, can_access_board, can_manage_freelancers, created_at, updated_at"
+        "id, email, full_name, role, gender, phone, avatar_url, certification, years_experience, country, shop_id, mentor_id, training_duration_weeks, training_started_at, program_id, can_access_orders, can_access_board, can_manage_freelancers, created_at, updated_at"
       )
       .single();
     if (error) throw error;

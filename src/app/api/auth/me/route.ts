@@ -22,7 +22,7 @@ export async function GET() {
     const { data: profile } = await ctx.db
       .from("profiles")
       .select(
-        "id, email, full_name, role, gender, phone, avatar_url, shop_id, can_access_orders, can_access_board, can_manage_freelancers, shop:shops(id, name, slug, currency, plan, trial_started_at, trial_ends_at)"
+        "id, email, full_name, role, gender, phone, avatar_url, shop_id, can_access_orders, can_access_board, can_manage_freelancers, certification, years_experience, country, shop:shops(id, name, slug, currency, plan, trial_started_at, trial_ends_at)"
       )
       .eq("id", ctx.userId)
       .maybeSingle();
@@ -38,6 +38,9 @@ export async function GET() {
         gender: profile.gender,
         phone: profile.phone,
         avatarUrl: profile.avatar_url,
+        certification: profile.certification,
+        yearsExperience: profile.years_experience,
+        country: profile.country,
         shopId: profile.shop_id,
         shop: profile.shop,
         canAccessOrders: profile.can_access_orders,

@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import type { PoolClient } from "pg";
 import { createAdminClient } from "@/lib/db/adminClient";
 import { createRequestClient } from "@/lib/db/requestClient";
-import { sendFreelancerVerification } from "@/lib/freelancer-verification";
 import { findIdentityConflict, identityErrorMessage, isPlausiblePhone, MESSAGES } from "@/lib/identity";
-import { getAppBaseUrl } from "@/lib/website-content.server";
 
 const SPECIALTIES = ["Beader", "Embroiderer", "Cutter", "Tailor", "Designer", "Photographer", "Other"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -108,26 +106,18 @@ export async function POST(req: Request) {
     });
     if (signInError) throw signInError;
 
-    // Send the verification link. Registration still succeeds if email delivery fails;
-    // the freelancer can request another from their portal.
-    const appUrl = await getAppBaseUrl(req);
-    const verification = await sendFreelancerVerification({
-      freelancerId: profile.id,
-      email: profile.email,
-      name: profile.full_name,
-      appUrl,
-    }).catch(() => ({ sent: false }));
-
     return NextResponse.json({
-      verificationEmailSent: verification.sent,
       freelancer: {
-        verified: false,
+        verified: true,
         id: profile.id,
         email: profile.email,
         fullName: profile.full_name,
         phone: profile.phone,
         specialty: profile.specialty,
         skills: profile.skills,
+        certification: null,
+        yearsExperience: null,
+        country: null,
       },
     });
   } catch (error) {
