@@ -10,7 +10,7 @@ export async function GET() {
 
   const { data: freelancer } = await ctx.db
     .from("freelancer_profiles")
-    .select("id, email, full_name, phone, specialty, skills, verified_at")
+    .select("id, email, full_name, phone, specialty, skills, certification, years_experience, country, verified_at")
     .eq("id", ctx.freelancerId)
     .maybeSingle();
   if (!freelancer) {
@@ -23,7 +23,10 @@ export async function GET() {
     phone: freelancer.phone,
     specialty: freelancer.specialty,
     skills: freelancer.skills,
-    verified: !!freelancer.verified_at,
+    verified: true,
+    certification: freelancer.certification,
+    yearsExperience: freelancer.years_experience,
+    country: freelancer.country,
   });
 }
 
@@ -43,6 +46,10 @@ export async function PATCH(req: Request) {
   if (phone && !isPlausiblePhone(phone)) return NextResponse.json({ error: MESSAGES.badPhone }, { status: 400 });
   const specialty = String(body.specialty ?? "").trim().slice(0, 60);
   const skills = String(body.skills ?? "").trim().slice(0, 300);
+  const certification = String(body.certification ?? "").trim().slice(0, 500);
+  const country = String(body.country ?? "").trim().slice(0, 100);
+  const yearsExperience = body.yearsExperience === "" || body.yearsExperience == null ? null : Number(body.yearsExperience);
+  if (yearsExperience !== null && (!Number.isInteger(yearsExperience) || yearsExperience < 0 || yearsExperience > 80)) return NextResponse.json({ error: "Years of experience must be between 0 and 80." }, { status: 400 });
 
   const { data, error } = await ctx.db
     .from("freelancer_profiles")
@@ -51,9 +58,12 @@ export async function PATCH(req: Request) {
       phone: phone ? phone.slice(0, 40) : null,
       specialty: specialty || null,
       skills: skills || null,
+      certification: certification || null,
+      country: country || null,
+      years_experience: yearsExperience,
     })
     .eq("id", ctx.freelancerId)
-    .select("id, email, full_name, phone, specialty, skills, verified_at")
+    .select("id, email, full_name, phone, specialty, skills, certification, years_experience, country, verified_at")
     .single();
   if (error || !data) {
     const friendly = identityErrorMessage(error);
@@ -67,6 +77,9 @@ export async function PATCH(req: Request) {
     phone: data.phone,
     specialty: data.specialty,
     skills: data.skills,
-    verified: !!data.verified_at,
+    verified: true,
+    certification: data.certification,
+    yearsExperience: data.years_experience,
+    country: data.country,
   });
 }
