@@ -68,6 +68,24 @@ export async function getTenant(): Promise<TenantContext | null> {
     // at their next login.
     if (profile.shop?.suspended_at) return null;
 
+    // Until all RLS policies and shop-scoped profile fields are migrated,
+    // only the legacy profile's studio may be authorized by getTenant().
+    // Never authorize a different selected studio with the legacy profile's
+    // role (e.g. owner of A becoming owner of B).
+    const selectedShopId = await db.auth.lookupActiveShopId();
+    if (selectedShopId && selectedShopId !== profile.shop_id) return null;
+
+    // Membership removal must revoke access even when the old profile has
+    // not yet been updated. Legacy profile roles remain authoritative until
+    // role-management writes are migrated to membership records.
+    const { data: membership, error: membershipError } = await db
+      .from("studio_memberships")
+      .select("role,status")
+      .eq("user_id", userId)
+      .eq("shop_id", profile.shop_id)
+      .maybeSingle();
+    if (membershipError || !membership || membership.status !== "active") return null;
+
     return {
       db,
       userId: profile.id,
