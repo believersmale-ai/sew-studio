@@ -115,6 +115,9 @@ export async function POST(req: Request) {
         phone: profile.phone,
         specialty: profile.specialty,
         skills: profile.skills,
+        certification: null,
+        yearsExperience: null,
+        country: null,
       },
     });
   } catch (error) {
