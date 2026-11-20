@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ADMIN_AREAS } from "@/lib/admin-access";
+import { AdminQuickLinks } from "./AdminQuickLinks";
 import {
   Activity,
   AlertCircle,
@@ -116,9 +117,9 @@ export function AdminPortalClient() {
   if (!admin) return <AdminLogin onLoggedIn={setAdmin} />;
   // Delegated admins without the Studios area get a simple home instead of the studios dashboard.
   if (admin.isSuper === false && !(admin.areas ?? []).includes("studios")) {
-    return <DelegateHome admin={admin} onLogout={() => setAdmin(null)} />;
+    return <><DelegateHome admin={admin} onLogout={() => setAdmin(null)} /><AdminQuickLinks /></>;
   }
-  return <AdminDashboard admin={admin} onLogout={() => setAdmin(null)} />;
+  return <><AdminDashboard admin={admin} onLogout={() => setAdmin(null)} /><AdminQuickLinks /></>;
 }
 
 function AdminLogin({ onLoggedIn }: { onLoggedIn: (admin: AdminProfile) => void }) {
@@ -148,8 +149,8 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: (admin: AdminProfile) => void 
   }
 
   return (
-    <main className="relative isolate flex min-h-dvh flex-col overflow-hidden bg-[#FCF9F8] text-[#251F22] lg:flex-row">
-      <section className="relative hidden min-h-dvh w-[48%] flex-col justify-between overflow-hidden bg-[#570D29] p-10 text-white lg:flex xl:p-16" aria-label="Sewsiness platform administration">
+    <main className="relative isolate flex min-h-dvh flex-col overflow-x-hidden bg-[#FCF9F8] text-[#251F22] lg:h-dvh lg:min-h-0 lg:flex-row lg:overflow-hidden">
+      <section className="relative hidden h-full w-[48%] flex-col justify-between overflow-hidden bg-[#570D29] p-8 text-white lg:flex xl:p-12 2xl:p-16" aria-label="Sewsiness platform administration">
         <div className="pointer-events-none absolute -right-32 -top-40 size-[540px] rounded-full border border-white/10" />
         <div className="pointer-events-none absolute -right-12 -top-20 size-[370px] rounded-full border border-white/10" />
         <div className="pointer-events-none absolute -bottom-52 -left-40 size-[620px] rounded-full bg-[#7E2844]/40" />
@@ -159,15 +160,15 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: (admin: AdminProfile) => void 
         </div>
         <div className="relative z-10 max-w-lg">
           <span className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#E9C68D]/40 px-4 py-2 text-xs font-semibold tracking-[.14em] text-[#E9C68D]"><Sparkles className="size-3.5" /> PLATFORM OPERATIONS</span>
-          <h1 className="font-display text-5xl font-semibold leading-[1.12] tracking-tight xl:text-6xl">A clearer view.<br /><span className="text-[#E9C68D]">Better control.</span></h1>
+          <h1 className="font-display text-4xl font-semibold leading-[1.12] tracking-tight text-white xl:text-5xl 2xl:text-6xl"><span className="text-white">A clearer view.</span><br /><span className="text-[#E9C68D]">Better control.</span></h1>
           <p className="mt-7 max-w-md text-base leading-8 text-white/75">A dedicated workspace for overseeing your studios, teams and the Sewsiness experience.</p>
-          <div className="mt-12 h-px w-20 bg-[#E9C68D]/70" />
+          <div className="mt-7 xl:mt-10 h-px w-20 bg-[#E9C68D]/70" />
           <p className="mt-5 text-sm tracking-wide text-white/65">Design · Manage · Grow</p>
         </div>
         <div className="relative z-10 flex items-center gap-2 text-xs text-white/60"><LockKeyhole className="size-4 text-[#E9C68D]" /> Restricted platform access</div>
       </section>
 
-      <section className="flex min-h-dvh w-full flex-1 flex-col px-5 py-6 sm:px-10 lg:px-12 xl:px-20">
+      <section className="flex min-h-dvh w-full min-w-0 flex-1 flex-col px-5 py-5 sm:px-10 lg:h-full lg:min-h-0 lg:px-10 lg:py-5 xl:px-14 2xl:px-20">
         <header className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2.5 lg:hidden">
             <span className="grid size-10 place-items-center rounded-xl bg-[#650D2C] text-[#E9C68D]"><ShieldCheck className="size-5" /></span>
@@ -176,19 +177,19 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: (admin: AdminProfile) => void 
           <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-[#EADDE1] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#764457]"><span className="size-1.5 rounded-full bg-[#C7A56A]" /> SECURE ADMIN ACCESS</span>
         </header>
 
-        <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center py-10 sm:py-16">
-          <div className="mb-9">
+        <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center py-7 sm:py-10 lg:min-h-0 lg:py-3">
+          <div className="mb-6 xl:mb-8">
             <span className="mb-4 inline-block text-xs font-semibold uppercase tracking-[.2em] text-[#946C49]">Administration portal</span>
             <h2 className="font-display text-4xl font-semibold tracking-tight text-[#351322] sm:text-[44px]">Welcome back.</h2>
             <p className="mt-3 text-sm leading-6 text-[#7E7479]">Sign in with your authorised administrator credentials to continue.</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label htmlFor="admin-email" className="mb-2 block text-sm font-semibold text-[#493A40]">Email address</label>
               <div className="relative">
                 <Mail aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[#9E8C93]" />
-                <input id="admin-email" type="email" required autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@sewsiness.com" className="h-[54px] w-full rounded-xl border border-[#E6DCE0] bg-white pl-12 pr-4 text-sm text-[#351322] outline-none transition placeholder:text-[#B6A9AF] focus:border-[#800020] focus:ring-4 focus:ring-[#800020]/10" />
+                <input id="admin-email" type="email" required autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@sewsiness.com" className="h-12 w-full rounded-xl border border-[#E6DCE0] bg-white pl-12 pr-4 text-sm text-[#351322] outline-none transition placeholder:text-[#B6A9AF] focus:border-[#800020] focus:ring-4 focus:ring-[#800020]/10" />
               </div>
             </div>
             <div>
@@ -201,16 +202,16 @@ function AdminLogin({ onLoggedIn }: { onLoggedIn: (admin: AdminProfile) => void 
             </div>
             <div className="flex justify-end"><a href="/admin/forgot-password" className="text-sm font-semibold text-[#720D31] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#720D31]">Forgot password?</a></div>
             {error && <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-800"><AlertCircle className="mt-0.5 size-4 shrink-0" />{error}</div>}
-            <button type="submit" disabled={loading} className="flex h-[54px] w-full items-center justify-center gap-2.5 rounded-xl bg-[#720D31] px-5 text-sm font-semibold text-white shadow-[0_12px_24px_-14px_rgba(114,13,49,.7)] transition hover:bg-[#570D29] focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#E9C68D] disabled:cursor-wait disabled:opacity-60">{loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-[18px]" />}{loading ? "Signing in securely…" : "Sign in to platform"}{!loading && <ArrowRight className="ml-auto size-4" />}</button>
+            <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[#720D31] px-5 text-sm font-semibold text-white shadow-[0_12px_24px_-14px_rgba(114,13,49,.7)] transition hover:bg-[#570D29] focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#E9C68D] disabled:cursor-wait disabled:opacity-60">{loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-[18px]" />}{loading ? "Signing in securely…" : "Sign in to platform"}{!loading && <ArrowRight className="ml-auto size-4" />}</button>
           </form>
 
-          <div className="mt-8 flex items-start gap-3 rounded-xl border border-[#EDE3E5] bg-[#F8F3F3] p-4">
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#EDE3E5] bg-[#F8F3F3] p-4">
             <ShieldCheck className="mt-0.5 size-[18px] shrink-0 text-[#800020]" />
             <p className="text-xs leading-5 text-[#77696F]"><span className="font-semibold text-[#51313D]">Authorised personnel only.</span> Access is restricted to designated Sewsiness platform administrators.</p>
           </div>
         </div>
 
-        <footer className="mx-auto flex w-full max-w-[440px] flex-wrap items-center justify-between gap-2 border-t border-[#EDE5E6] pt-5 text-xs text-[#968A90]"><span>© {new Date().getFullYear()} Sewsiness</span><span>Design · Manage · Grow</span></footer>
+        <footer className="mx-auto flex w-full max-w-[440px] flex-wrap items-center justify-between gap-2 border-t border-[#EDE5E6] pt-3 text-xs text-[#968A90]"><span>© {new Date().getFullYear()} Sewsiness</span><span>Design · Manage · Grow</span></footer>
       </section>
     </main>
   );
