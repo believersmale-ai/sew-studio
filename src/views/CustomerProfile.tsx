@@ -159,6 +159,9 @@ export default function CustomerProfile() {
   const [activitySubject, setActivitySubject] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
   const [activityDate, setActivityDate] = useState("");
+  const [documentCategory, setDocumentCategory] = useState("other");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
+  const [documentUploading, setDocumentUploading] = useState(false);
   const { data: interactions = [] } = useQuery<{ id: string; kind: string; subject: string; details: string | null; occurredAt: string }[]>({
     queryKey: ["customer-interactions", selectedId],
     queryFn: () => apiGet(`/api/customers/${selectedId}/interactions`),
@@ -169,6 +172,28 @@ export default function CustomerProfile() {
     onSuccess: () => { setActivitySubject(""); setActivityDetails(""); setActivityDate(""); qc.invalidateQueries({ queryKey: ["customer-interactions", selectedId] }); toast.success("Customer activity saved"); },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const { data: customerDocuments = [] } = useQuery<{ id:string; name:string; category:string; createdAt:string; url:string }[]>({
+    queryKey: ["customer-documents", selectedId],
+    queryFn: () => apiGet(`/api/customers/${selectedId}/documents`),
+    enabled: !!selectedId,
+  });
+  const uploadDocument = async () => {
+    if (!documentFile || !selectedId) return;
+    setDocumentUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", documentFile);
+      form.append("category", documentCategory);
+      const response = await fetch(`/api/customers/${selectedId}/documents`, { method:"POST", body:form, credentials:"same-origin" });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Upload failed");
+      setDocumentFile(null);
+      qc.invalidateQueries({ queryKey:["customer-documents", selectedId] });
+      toast.success("Document uploaded");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Upload failed"); }
+    finally { setDocumentUploading(false); }
+  };
 
   if (!selectedId) {
     return (
@@ -326,7 +351,7 @@ export default function CustomerProfile() {
     { key: "orders", title: "Orders", icon: ShoppingBag, summary: `${orders.length} total · ${inProgress} active`, lines: [`${completedOrders} completed · ${pendingOrders} pending`, latestOrder && `Latest: ${latestOrder.garmentDesign}`].filter(Boolean) as string[], action: "View orders" },
     { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} flagged alterations`, upcomingFittings[0] && `Next fitting: ${shortDate(upcomingFittings[0].date)}`, upcomingAppointments[0] && `Next appointment: ${shortDate(upcomingAppointments[0].occurredAt)}`].filter(Boolean) as string[], action: "View fittings" },
     { key: "gallery", title: "Gallery", icon: ImageIcon, summary: `${gallery.length} saved images`, lines: gallery.slice(0,2).map((g) => g.title), action: "View gallery" },
-    { key: "documents", title: "Documents", icon: FileText, summary: `${quotes.length} saved quotations`, lines: quotes.length ? quotes.slice(0,2).map((q) => `${q.garment} · ${shortDate(q.createdAt)}`) : ["No quotations linked to this customer"], action: "View documents" },
+    { key: "documents", title: "Documents", icon: FileText, summary: `${quotes.length} quotations · ${customerDocuments.length} files`, lines: [...quotes.slice(0,1).map((q) => `${q.garment} · ${shortDate(q.createdAt)}`), ...customerDocuments.slice(0,2).map((d) => `${d.category}: ${d.name}`)], action: "View documents" },
     { key: "feedback", title: "Feedback", icon: Heart, summary: `${feedback.length} feedback entries`, lines: [...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0,1).map((f) => `${f.rating}/5 · ${f.feedback || f.type}`), action: "View feedback" },
     { key: "activity", title: "Recent activity", icon: Activity, summary: `${recentActivity.length} recorded events`, lines: [upcomingAppointments.length ? `${upcomingAppointments.length} upcoming appointments` : "", ...recentActivity.slice(0,2).map((a) => `${shortDate(a.date)} · ${a.title}`)].filter(Boolean), action: "View activity" },
   ];
@@ -665,7 +690,18 @@ export default function CustomerProfile() {
         <TabsContent value="gallery" className="mt-3"><SectionCard title={`Saved images · ${gallery.length}`}>
           {gallery.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{gallery.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border border-[#EEDFE3]"><img src={item.url} alt={item.title} loading="lazy" className="aspect-square w-full object-cover"/><p className="truncate p-2 text-xs text-stone-600">{item.title}</p></div>)}</div> : <p className="text-sm text-stone-500">No garment or concept images have been saved.</p>}
         </SectionCard></TabsContent>
-        <TabsContent value="documents" className="mt-3"><SectionCard title="Customer documents">{quotes.length ? <div className="divide-y divide-[#EEDFE3]">{quotes.map((q) => <div key={q.id} className="flex items-center justify-between gap-3 py-3"><span><span className="block text-sm font-semibold text-[#351322]">{q.garment}</span><span className="text-xs text-stone-500">Quotation · {shortDate(q.createdAt)}</span></span>{canSeeMoney && <span className="text-sm font-medium text-[#800020]">{formatCurrency(q.total)}</span>}</div>)}</div> : <p className="text-sm text-stone-500">No quotations linked to this customer.</p>}<p className="mt-3 text-xs text-stone-400">Other document types (invoices, sketches and uploads) are not yet available through the customer profile API.</p></SectionCard></TabsContent>
+        <TabsContent value="documents" className="mt-3"><SectionCard title="Customer documents">
+          {(owner || canCreate) && <div className="mb-5 space-y-3 rounded-lg border border-[#EEDFE3] bg-[#FDF9FA] p-4">
+            <p className="text-sm font-semibold text-[#351322]">Upload a document</p>
+            <label className="block text-xs text-stone-600">Category<select value={documentCategory} onChange={(e) => setDocumentCategory(e.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"><option value="sketch">Sketch</option><option value="invoice">Invoice</option><option value="quotation">Quotation</option><option value="fitting_photo">Fitting photograph</option><option value="other">Other</option></select></label>
+            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp" aria-label="Choose customer document" onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)} className="block w-full text-xs text-stone-600 file:mr-3 file:rounded-md file:border-0 file:bg-[#F2E4E8] file:px-3 file:py-2 file:text-[#800020]"/>
+            <button type="button" disabled={!documentFile || documentUploading} onClick={uploadDocument} className="rounded-lg bg-[#800020] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{documentUploading ? "Uploading…" : "Upload document"}</button>
+            <p className="text-xs text-stone-500">PDF, JPG, PNG or WebP · maximum 8 MB. Accessible only to signed-in studio members.</p>
+          </div>}
+          {customerDocuments.length > 0 && <div className="divide-y divide-[#EEDFE3]">{customerDocuments.map((d) => <a key={d.id} href={d.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between gap-3 py-3 hover:text-[#800020]"><span><span className="block break-all text-sm font-medium">{d.name}</span><span className="text-xs text-stone-500">{d.category.replace(/_/g," ")} · {shortDate(d.createdAt)}</span></span><ChevronRight className="size-4 shrink-0"/></a>)}</div>}
+          {quotes.length > 0 && <div className="mt-4 border-t border-[#EEDFE3] pt-3"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Saved quotations</p>{quotes.map((q) => <div key={q.id} className="flex items-center justify-between gap-3 py-2"><span className="text-sm">{q.garment} · {shortDate(q.createdAt)}</span>{canSeeMoney && <span className="text-sm font-medium">{formatCurrency(q.total)}</span>}</div>)}</div>}
+          {!customerDocuments.length && !quotes.length && <p className="text-sm text-stone-500">No documents have been added for this customer.</p>}
+        </SectionCard></TabsContent>
         <TabsContent value="feedback" className="mt-3"><SectionCard title={`Customer feedback · ${feedback.length}`}>
           {feedback.length ? <div className="space-y-4">{[...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((f) => <div key={f.id} className="border-b border-[#EEDFE3] pb-3"><div className="flex items-center justify-between gap-2"><Stars value={f.rating}/><span className="text-xs text-stone-500">{shortDate(f.date)}</span></div><p className="mt-1 text-xs font-semibold text-[#800020]">{f.type}</p><p className="mt-1 text-sm text-stone-600">{f.feedback || "No written comment"}</p></div>)}</div> : <p className="text-sm text-stone-500">No customer feedback recorded yet.</p>}
         </SectionCard></TabsContent>
