@@ -158,14 +158,15 @@ export default function CustomerProfile() {
   const [activityKind, setActivityKind] = useState("note");
   const [activitySubject, setActivitySubject] = useState("");
   const [activityDetails, setActivityDetails] = useState("");
+  const [activityDate, setActivityDate] = useState("");
   const { data: interactions = [] } = useQuery<{ id: string; kind: string; subject: string; details: string | null; occurredAt: string }[]>({
     queryKey: ["customer-interactions", selectedId],
     queryFn: () => apiGet(`/api/customers/${selectedId}/interactions`),
     enabled: !!selectedId,
   });
   const addInteraction = useMutation({
-    mutationFn: () => apiPost(`/api/customers/${selectedId}/interactions`, { kind: activityKind, subject: activitySubject, details: activityDetails }),
-    onSuccess: () => { setActivitySubject(""); setActivityDetails(""); qc.invalidateQueries({ queryKey: ["customer-interactions", selectedId] }); toast.success("Customer activity saved"); },
+    mutationFn: () => apiPost(`/api/customers/${selectedId}/interactions`, { kind: activityKind, subject: activitySubject, details: activityDetails, ...(activityKind === "appointment" && activityDate ? { occurredAt: new Date(activityDate).toISOString() } : {}) }),
+    onSuccess: () => { setActivitySubject(""); setActivityDetails(""); setActivityDate(""); qc.invalidateQueries({ queryKey: ["customer-interactions", selectedId] }); toast.success("Customer activity saved"); },
     onError: (error: Error) => toast.error(error.message),
   });
 
@@ -308,6 +309,8 @@ export default function CustomerProfile() {
     ...styleConcepts.filter((c) => !!c.imageUrl).map((c) => ({ id: c.id, url: c.imageUrl!, title: c.conceptName })),
     ...orders.filter((o) => !!o.designImage).map((o) => ({ id: o.id, url: o.designImage!, title: o.garmentDesign })),
   ];
+  const appointments = interactions.filter((a) => a.kind === "appointment");
+  const upcomingAppointments = appointments.filter((a) => new Date(a.occurredAt).getTime() >= Date.now()).sort((a,b) => new Date(a.occurredAt).getTime() - new Date(b.occurredAt).getTime());
   const recentActivity = [
     ...interactions.map((a) => ({ id: `interaction-${a.id}`, title: `${a.kind}: ${a.subject}`, date: a.occurredAt, tab: "activity" })),
     ...orders.map((o) => ({ id: `order-${o.id}`, title: `Order: ${o.garmentDesign}`, date: o.updatedAt ?? o.orderDate, tab: "orders" })),
@@ -321,11 +324,11 @@ export default function CustomerProfile() {
     { key: "fit", title: "Proportions & fit", icon: ClipboardList, summary: customer.preferredFit || "Fit preference not recorded", lines: [latestMeasurements?.posture && `Posture: ${latestMeasurements.posture}`, latestMeasurements?.notes, customer.styleNotes].filter(Boolean) as string[], action: "View fit details" },
     { key: "style", title: "Style profile", icon: Sparkles, summary: customer.preferredStyles || "No preferred styles recorded", lines: [customer.favouriteColours && `Colours: ${customer.favouriteColours}`, customer.favouriteFabrics && `Fabrics: ${customer.favouriteFabrics}`, customer.designPreferences].filter(Boolean) as string[], action: "View style" },
     { key: "orders", title: "Orders", icon: ShoppingBag, summary: `${orders.length} total · ${inProgress} active`, lines: [`${completedOrders} completed · ${pendingOrders} pending`, latestOrder && `Latest: ${latestOrder.garmentDesign}`].filter(Boolean) as string[], action: "View orders" },
-    { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} flagged alterations`, upcomingFittings[0] && `Next: ${shortDate(upcomingFittings[0].date)}`].filter(Boolean) as string[], action: "View fittings" },
+    { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} flagged alterations`, upcomingFittings[0] && `Next fitting: ${shortDate(upcomingFittings[0].date)}`, upcomingAppointments[0] && `Next appointment: ${shortDate(upcomingAppointments[0].occurredAt)}`].filter(Boolean) as string[], action: "View fittings" },
     { key: "gallery", title: "Gallery", icon: ImageIcon, summary: `${gallery.length} saved images`, lines: gallery.slice(0,2).map((g) => g.title), action: "View gallery" },
     { key: "documents", title: "Documents", icon: FileText, summary: `${quotes.length} saved quotations`, lines: quotes.length ? quotes.slice(0,2).map((q) => `${q.garment} · ${shortDate(q.createdAt)}`) : ["No quotations linked to this customer"], action: "View documents" },
     { key: "feedback", title: "Feedback", icon: Heart, summary: `${feedback.length} feedback entries`, lines: [...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0,1).map((f) => `${f.rating}/5 · ${f.feedback || f.type}`), action: "View feedback" },
-    { key: "activity", title: "Recent activity", icon: Activity, summary: `${recentActivity.length} recorded events`, lines: recentActivity.slice(0,2).map((a) => `${shortDate(a.date)} · ${a.title}`), action: "View activity" },
+    { key: "activity", title: "Recent activity", icon: Activity, summary: `${recentActivity.length} recorded events`, lines: [upcomingAppointments.length ? `${upcomingAppointments.length} upcoming appointments` : "", ...recentActivity.slice(0,2).map((a) => `${shortDate(a.date)} · ${a.title}`)].filter(Boolean), action: "View activity" },
   ];
   const quickAction =
     "grid size-10 shrink-0 place-items-center rounded-lg border border-[#E6D4D8] bg-white text-[#650019] transition-colors hover:bg-[#FBF1F3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C79A45]";
@@ -667,13 +670,15 @@ export default function CustomerProfile() {
           {feedback.length ? <div className="space-y-4">{[...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((f) => <div key={f.id} className="border-b border-[#EEDFE3] pb-3"><div className="flex items-center justify-between gap-2"><Stars value={f.rating}/><span className="text-xs text-stone-500">{shortDate(f.date)}</span></div><p className="mt-1 text-xs font-semibold text-[#800020]">{f.type}</p><p className="mt-1 text-sm text-stone-600">{f.feedback || "No written comment"}</p></div>)}</div> : <p className="text-sm text-stone-500">No customer feedback recorded yet.</p>}
         </SectionCard></TabsContent>
         <TabsContent value="activity" className="mt-3"><SectionCard title="Recent customer activity">
+          {upcomingAppointments.length > 0 && <div className="mb-4 rounded-lg border border-[#E6D4D8] bg-[#FDF9FA] p-3"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#800020]">Upcoming appointments</p>{upcomingAppointments.slice(0,5).map((a) => <div key={a.id} className="flex flex-wrap justify-between gap-2 py-1 text-sm"><span>{a.subject}</span><time className="text-stone-500">{new Date(a.occurredAt).toLocaleString()}</time></div>)}</div>}
           {recentActivity.length ? <div className="divide-y divide-[#EEDFE3]">{recentActivity.slice(0,30).map((item) => <button key={item.id} onClick={() => setTab(item.tab)} className="flex w-full items-center justify-between gap-3 py-3 text-left hover:text-[#800020]"><span className="text-sm">{item.title}</span><span className="shrink-0 text-xs text-stone-500">{shortDate(item.date)}</span></button>)}</div> : <p className="text-sm text-stone-500">No recorded order, measurement, fitting or feedback activity.</p>}
           {(owner || canCreate) && <form onSubmit={(event) => { event.preventDefault(); if (activitySubject.trim()) addInteraction.mutate(); }} className="mt-5 space-y-3 rounded-xl border border-[#EEDFE3] bg-[#FDF9FA] p-4">
             <h4 className="text-sm font-semibold text-[#351322]">Record an interaction or appointment</h4>
             <label className="block text-xs font-medium text-stone-600">Type<select value={activityKind} onChange={(event) => setActivityKind(event.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"><option value="note">Note</option><option value="call">Call</option><option value="message">Message</option><option value="appointment">Appointment</option><option value="visit">Visit</option></select></label>
             <label className="block text-xs font-medium text-stone-600">Subject<input required maxLength={200} value={activitySubject} onChange={(event) => setActivitySubject(event.target.value)} placeholder="e.g. Confirmed fitting appointment" className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"/></label>
+            {activityKind === "appointment" && <label className="block text-xs font-medium text-stone-600">Appointment date and time<input type="datetime-local" required value={activityDate} onChange={(event) => setActivityDate(event.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"/></label>}
             <label className="block text-xs font-medium text-stone-600">Details (optional)<textarea maxLength={3000} rows={2} value={activityDetails} onChange={(event) => setActivityDetails(event.target.value)} className="mt-1 block w-full rounded-lg border border-[#EEDFE3] bg-white p-3 text-sm"/></label>
-            <button type="submit" disabled={addInteraction.isPending || !activitySubject.trim()} className="rounded-lg bg-[#800020] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Save activity</button>
+            <button type="submit" disabled={addInteraction.isPending || !activitySubject.trim() || (activityKind === "appointment" && !activityDate)} className="rounded-lg bg-[#800020] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Save activity</button>
           </form>}
           <p className="mt-3 text-xs text-stone-400">Timeline combines order, measurement, fitting, feedback and manually recorded interactions.</p>
         </SectionCard></TabsContent>
