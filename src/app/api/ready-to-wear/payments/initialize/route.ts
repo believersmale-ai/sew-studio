@@ -1,3 +1,4 @@
+import { enforceShopRateLimit } from "@/lib/ready-to-wear-rate-limit";
 import { getPool } from "@/lib/db/pool";
 import { paymentConfiguration, paystackRequest } from "@/lib/ready-to-wear-paystack";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -7,6 +8,7 @@ export async function POST(req:Request){
  if(!(await paymentConfiguration()).enabled)return Response.json({error:"Online payments are not enabled"},{status:503});
  const phone=String(body.phone??"").trim();
  if(phone.length<7||phone.length>30)return Response.json({error:"Order phone is required"},{status:400});
+ const limited=await enforceShopRateLimit(req,{scope:"paystack-init:"+id,max:8,seconds:3600,identity:phone});if(limited)return limited;
  const pool=getPool();
  const {rows}=await pool.query("select id,customer_email,total,payment_reference,payment_status from public.rtw_orders where id=$1 and customer_phone=$2 and payment_method='paystack' and status='Pending payment'",[id,phone]);
  if(!rows.length)return Response.json({error:"Order is not awaiting payment"},{status:404});
