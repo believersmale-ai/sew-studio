@@ -38,3 +38,20 @@ export async function POST(req:Request,{params}:Ctx){
   await client.query("COMMIT");return Response.json({id,paymentStatus:"Paid",status:"Paid"});
  }catch(e){await client.query("ROLLBACK");console.error("[rtw] manual payment confirmation failed",e);return Response.json({error:"Unable to confirm payment"},{status:500})}finally{client.release()}
 }
+
+export async function DELETE(_req:Request,{params}:Ctx){
+ const ctx=await getTenant();if(!ctx)return Response.json({error:"Unauthorized"},{status:401});
+ if(ctx.role!=="madam")return Response.json({error:"Only the owner can cancel unpaid orders"},{status:403});
+ const {id}=await params;if(!uuid.test(id))return Response.json({error:"Invalid order"},{status:400});
+ const client=await getPool().connect();
+ try{
+  await client.query("BEGIN");
+  const {rows}=await client.query("select variant_id,quantity,status,payment_status,payment_method from public.rtw_orders where id=$1 and shop_id=$2 for update",[id,ctx.shopId]);
+  if(!rows.length){await client.query("ROLLBACK");return Response.json({error:"Order not found"},{status:404})}
+  const o=rows[0];
+  if(o.status!=="Pending payment"||o.payment_status==="Paid"||o.payment_method!=="manual"){await client.query("ROLLBACK");return Response.json({error:"Only unpaid manual orders can be cancelled here"},{status:409})}
+  await client.query("update public.rtw_orders set status='Cancelled',updated_at=now() where id=$1",[id]);
+  await client.query("update public.rtw_variants set stock=stock+$2 where id=$1",[o.variant_id,o.quantity]);
+  await client.query("COMMIT");return Response.json({cancelled:true});
+ }catch(e){await client.query("ROLLBACK");console.error("[rtw] cancellation failed",e);return Response.json({error:"Unable to cancel order"},{status:500})}finally{client.release()}
+}
