@@ -155,6 +155,20 @@ export default function CustomerProfile() {
     enabled: !!selectedId,
   });
 
+  const [activityKind, setActivityKind] = useState("note");
+  const [activitySubject, setActivitySubject] = useState("");
+  const [activityDetails, setActivityDetails] = useState("");
+  const { data: interactions = [] } = useQuery<{ id: string; kind: string; subject: string; details: string | null; occurredAt: string }[]>({
+    queryKey: ["customer-interactions", selectedId],
+    queryFn: () => apiGet(`/api/customers/${selectedId}/interactions`),
+    enabled: !!selectedId,
+  });
+  const addInteraction = useMutation({
+    mutationFn: () => apiPost(`/api/customers/${selectedId}/interactions`, { kind: activityKind, subject: activitySubject, details: activityDetails }),
+    onSuccess: () => { setActivitySubject(""); setActivityDetails(""); qc.invalidateQueries({ queryKey: ["customer-interactions", selectedId] }); toast.success("Customer activity saved"); },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
   if (!selectedId) {
     return (
       <div className="p-4 sm:p-5 md:p-8 max-w-[1200px] mx-auto w-full">
@@ -295,6 +309,7 @@ export default function CustomerProfile() {
     ...orders.filter((o) => !!o.designImage).map((o) => ({ id: o.id, url: o.designImage!, title: o.garmentDesign })),
   ];
   const recentActivity = [
+    ...interactions.map((a) => ({ id: `interaction-${a.id}`, title: `${a.kind}: ${a.subject}`, date: a.occurredAt, tab: "activity" })),
     ...orders.map((o) => ({ id: `order-${o.id}`, title: `Order: ${o.garmentDesign}`, date: o.updatedAt ?? o.orderDate, tab: "orders" })),
     ...measurements.map((m) => ({ id: `measurement-${m.id}`, title: "Measurements recorded", date: m.dateTaken, tab: "measurements" })),
     ...feedback.map((f) => ({ id: `feedback-${f.id}`, title: `Customer feedback · ${f.rating}/5`, date: f.date, tab: "feedback" })),
@@ -653,7 +668,14 @@ export default function CustomerProfile() {
         </SectionCard></TabsContent>
         <TabsContent value="activity" className="mt-3"><SectionCard title="Recent customer activity">
           {recentActivity.length ? <div className="divide-y divide-[#EEDFE3]">{recentActivity.slice(0,30).map((item) => <button key={item.id} onClick={() => setTab(item.tab)} className="flex w-full items-center justify-between gap-3 py-3 text-left hover:text-[#800020]"><span className="text-sm">{item.title}</span><span className="shrink-0 text-xs text-stone-500">{shortDate(item.date)}</span></button>)}</div> : <p className="text-sm text-stone-500">No recorded order, measurement, fitting or feedback activity.</p>}
-          <p className="mt-3 text-xs text-stone-400">This timeline uses existing profile records; communication logs and appointments are not yet connected.</p>
+          {(owner || canCreate) && <form onSubmit={(event) => { event.preventDefault(); if (activitySubject.trim()) addInteraction.mutate(); }} className="mt-5 space-y-3 rounded-xl border border-[#EEDFE3] bg-[#FDF9FA] p-4">
+            <h4 className="text-sm font-semibold text-[#351322]">Record an interaction or appointment</h4>
+            <label className="block text-xs font-medium text-stone-600">Type<select value={activityKind} onChange={(event) => setActivityKind(event.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"><option value="note">Note</option><option value="call">Call</option><option value="message">Message</option><option value="appointment">Appointment</option><option value="visit">Visit</option></select></label>
+            <label className="block text-xs font-medium text-stone-600">Subject<input required maxLength={200} value={activitySubject} onChange={(event) => setActivitySubject(event.target.value)} placeholder="e.g. Confirmed fitting appointment" className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"/></label>
+            <label className="block text-xs font-medium text-stone-600">Details (optional)<textarea maxLength={3000} rows={2} value={activityDetails} onChange={(event) => setActivityDetails(event.target.value)} className="mt-1 block w-full rounded-lg border border-[#EEDFE3] bg-white p-3 text-sm"/></label>
+            <button type="submit" disabled={addInteraction.isPending || !activitySubject.trim()} className="rounded-lg bg-[#800020] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Save activity</button>
+          </form>}
+          <p className="mt-3 text-xs text-stone-400">Timeline combines order, measurement, fitting, feedback and manually recorded interactions.</p>
         </SectionCard></TabsContent>
 
         {/* Notes: one editor with a switch, instead of two stacked cards */}
