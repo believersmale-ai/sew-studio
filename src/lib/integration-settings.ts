@@ -18,7 +18,7 @@ import { getPool } from "@/lib/db/pool";
  * decrypt the secrets.
  */
 
-export type SettingGroup = "email" | "notifications" | "ai";
+export type SettingGroup = "email" | "notifications" | "ai" | "payments";
 export type SettingKind = "text" | "url" | "number" | "bool" | "secret";
 
 export interface SettingDef {
@@ -49,6 +49,8 @@ export const SETTING_DEFS: SettingDef[] = [
   { key: "apps_script_url", env: "GOOGLE_APPS_SCRIPT_URL", group: "notifications", kind: "url", label: "Apps Script web app address", placeholder: "https://script.google.com/macros/s/…/exec", help: "Customer order updates are sent through this web app. Also used as an email fallback." },
   { key: "apps_script_secret", env: "GOOGLE_APPS_SCRIPT_SECRET", group: "notifications", kind: "secret", label: "Apps Script shared secret", help: "Must match the secret inside your script." },
 
+  { key: "paystack_secret_key", env: "PAYSTACK_SECRET_KEY", group: "payments", kind: "secret", label: "Paystack secret key", help: "Configure later to enable secure hosted checkout. Never share this key with customers." },
+  { key: "paystack_enabled", env: "PAYSTACK_ENABLED", group: "payments", kind: "bool", label: "Enable Paystack checkout", default: "false", help: "Only enable after Paystack credentials, webhook and test payments are verified." },
   // ── AI ───────────────────────────────────────────────────────────────────
   { key: "anthropic_api_key", env: "ANTHROPIC_API_KEY", group: "ai", kind: "secret", label: "Anthropic API key", help: "Powers Style Assist concepts and Trend Insights." },
   { key: "anthropic_model", env: "ANTHROPIC_MODEL", group: "ai", kind: "text", label: "Anthropic model", default: "claude-sonnet-4-6" },
