@@ -1,3 +1,4 @@
+import { enforceShopRateLimit } from "@/lib/ready-to-wear-rate-limit";
 import { paymentConfiguration } from "@/lib/ready-to-wear-paystack";
 import { getPool } from "@/lib/db/pool";
 type Ctx={params:Promise<{shopId:string}>};
@@ -16,6 +17,7 @@ export async function POST(req:Request,{params}:Ctx){
  const quantity=Number(b.quantity),productId=String(b.productId??""),variantId=String(b.variantId??"");
  const name=String(b.name??"").trim(),phone=String(b.phone??"").trim(),email=String(b.email??"").trim(),address=String(b.address??"").trim(),city=String(b.city??"").trim(),notes=String(b.notes??"").trim();
  if(!uuid.test(productId)||!uuid.test(variantId)||!Number.isInteger(quantity)||quantity<1||quantity>20||name.length<2||name.length>150||phone.length<7||phone.length>30||address.length<8||address.length>500||!city||city.length>120||email.length>200||(method==="paystack"&&!/^\S+@\S+\.\S+$/.test(email))||notes.length>1000)return Response.json({error:"Please provide valid order and delivery details"},{status:400});
+ const limited=await enforceShopRateLimit(req,{scope:"order:"+shopId,max:5,seconds:3600,identity:phone});if(limited)return limited;
  const client=await getPool().connect();
  try{
   await client.query("BEGIN");
