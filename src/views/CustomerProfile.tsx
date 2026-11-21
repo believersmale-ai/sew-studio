@@ -20,6 +20,13 @@ import {
   Save,
   MoreVertical,
   ChevronRight,
+  CalendarDays,
+  ImageIcon,
+  FileText,
+  Activity,
+  Heart,
+  ClipboardList,
+  UserRound,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -274,6 +281,35 @@ export default function CustomerProfile() {
     { label: "Preferred styles", value: customer.preferredStyles },
   ].filter((g) => !!g.value);
 
+  const latestMeasurements = [...measurements].sort((a, b) => new Date(b.dateTaken).getTime() - new Date(a.dateTaken).getTime())[0];
+  const completedOrders = orders.filter((o) => FINISHED.has(o.status)).length;
+  const pendingOrders = orders.filter((o) => /pending|new|quoted|awaiting/i.test(o.status)).length;
+  const fittings = orders.flatMap((o) => (o.fittings ?? []).map((f) => ({ ...f, garment: o.garmentDesign, orderId: o.id })));
+  const upcomingFittings = fittings.filter((f) => !/complete|done|cancel/i.test(f.status) && new Date(f.date).getTime() >= new Date().setHours(0,0,0,0));
+  const completedFittings = fittings.filter((f) => /complete|done/i.test(f.status));
+  const alterations = fittings.filter((f) => /alteration|adjustment/i.test(f.notes ?? "") && !/complete|done/i.test(f.status));
+  const gallery = [
+    ...styleConcepts.filter((c) => !!c.imageUrl).map((c) => ({ id: c.id, url: c.imageUrl!, title: c.conceptName })),
+    ...orders.filter((o) => !!o.designImage).map((o) => ({ id: o.id, url: o.designImage!, title: o.garmentDesign })),
+  ];
+  const recentActivity = [
+    ...orders.map((o) => ({ id: `order-${o.id}`, title: `Order: ${o.garmentDesign}`, date: o.updatedAt ?? o.orderDate, tab: "orders" })),
+    ...measurements.map((m) => ({ id: `measurement-${m.id}`, title: "Measurements recorded", date: m.dateTaken, tab: "measurements" })),
+    ...feedback.map((f) => ({ id: `feedback-${f.id}`, title: `Customer feedback · ${f.rating}/5`, date: f.date, tab: "feedback" })),
+    ...fittings.map((f) => ({ id: `fitting-${f.id}`, title: `Fitting: ${f.garment}`, date: f.date, tab: "fittings" })),
+  ].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  const snapshotCards = [
+    { key: "personal", title: "Personal details", icon: UserRound, summary: customer.name, lines: [customer.phone, customer.email, [customer.city, customer.country].filter(Boolean).join(", ")].filter(Boolean) as string[], action: "View details" },
+    { key: "measurements", title: "Measurements", icon: Ruler, summary: latestMeasurements ? `Updated ${shortDate(latestMeasurements.dateTaken)}` : "No measurements recorded", lines: latestMeasurements ? (["bust", "waist", "hip"] as const).filter((k) => latestMeasurements[k] != null).map((k) => `${k}: ${latestMeasurements[k]} ${latestMeasurements.unit || "cm"}`) : [], action: "View measurements" },
+    { key: "fit", title: "Proportions & fit", icon: ClipboardList, summary: customer.preferredFit || "Fit preference not recorded", lines: [latestMeasurements?.posture && `Posture: ${latestMeasurements.posture}`, latestMeasurements?.notes, customer.styleNotes].filter(Boolean) as string[], action: "View fit details" },
+    { key: "style", title: "Style profile", icon: Sparkles, summary: customer.preferredStyles || "No preferred styles recorded", lines: [customer.favouriteColours && `Colours: ${customer.favouriteColours}`, customer.favouriteFabrics && `Fabrics: ${customer.favouriteFabrics}`, customer.designPreferences].filter(Boolean) as string[], action: "View style" },
+    { key: "orders", title: "Orders", icon: ShoppingBag, summary: `${orders.length} total · ${inProgress} active`, lines: [`${completedOrders} completed · ${pendingOrders} pending`, latestOrder && `Latest: ${latestOrder.garmentDesign}`].filter(Boolean) as string[], action: "View orders" },
+    { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} flagged alterations`, upcomingFittings[0] && `Next: ${shortDate(upcomingFittings[0].date)}`].filter(Boolean) as string[], action: "View fittings" },
+    { key: "gallery", title: "Gallery", icon: ImageIcon, summary: `${gallery.length} saved images`, lines: gallery.slice(0,2).map((g) => g.title), action: "View gallery" },
+    { key: "documents", title: "Documents", icon: FileText, summary: "Document library", lines: ["No customer document records available in this profile yet"], action: "View documents" },
+    { key: "feedback", title: "Feedback", icon: Heart, summary: `${feedback.length} feedback entries`, lines: [...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0,1).map((f) => `${f.rating}/5 · ${f.feedback || f.type}`), action: "View feedback" },
+    { key: "activity", title: "Recent activity", icon: Activity, summary: `${recentActivity.length} recorded events`, lines: recentActivity.slice(0,2).map((a) => `${shortDate(a.date)} · ${a.title}`), action: "View activity" },
+  ];
   const quickAction =
     "grid size-10 shrink-0 place-items-center rounded-lg border border-[#E6D4D8] bg-white text-[#650019] transition-colors hover:bg-[#FBF1F3] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C79A45]";
 
@@ -410,6 +446,11 @@ export default function CustomerProfile() {
             { v: "orders", l: "Orders", n: orders.length },
             { v: "measurements", l: "Measurements", n: measurements.length },
             { v: "style", l: "Style", n: styleConcepts.length },
+            { v: "fittings", l: "Fittings", n: fittings.length },
+            { v: "gallery", l: "Gallery", n: gallery.length },
+            { v: "documents", l: "Documents", n: null },
+            { v: "feedback", l: "Feedback", n: feedback.length },
+            { v: "activity", l: "Activity", n: null },
             { v: "notes", l: "Notes", n: null },
           ].map((t) => (
             <TabsTrigger
@@ -423,98 +464,24 @@ export default function CustomerProfile() {
           ))}
         </TabsList>
 
-        {/* Overview: everything you need on one screen */}
-        <TabsContent value="overview" className="mt-3">
-          <div className="grid items-start gap-3 lg:grid-cols-2">
-            <SectionCard
-              title="Latest order"
-              bodyClassName="p-0"
-              className="lg:col-start-1"
-              action={
-                orders.length > 1 ? (
-                  <button type="button" onClick={() => setTab("orders")} className="inline-flex items-center gap-0.5 text-xs font-medium text-[#650019] hover:underline">
-                    All {orders.length} <ChevronRight className="h-3.5 w-3.5" />
-                  </button>
-                ) : undefined
-              }
-            >
-              {latestOrder ? (
-                <OrderRow o={latestOrder} showPrice={canSeeMoney} onOpen={openOrder} />
-              ) : (
-                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5">
-                  <p className="text-sm text-stone-500">No orders yet for {firstName}.</p>
-                  {canCreate && (
-                    <PremiumButton variant="primary" size="sm" onClick={newOrder}>
-                      <Plus className="h-3.5 w-3.5" /> New order
-                    </PremiumButton>
-                  )}
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard
-              title="About"
-              className="lg:col-start-2 lg:row-span-2 lg:row-start-1"
-              action={
-                <button type="button" onClick={() => setEditOpen(true)} className="inline-flex items-center gap-1 text-xs font-medium text-[#650019] hover:underline">
-                  <Pencil className="h-3 w-3" /> Edit
-                </button>
-              }
-            >
-              {details.length === 0 && styleGroups.length === 0 ? (
-                <p className="text-sm text-stone-500">
-                  Nothing recorded yet. Add contact details and style preferences with Edit.
-                </p>
-              ) : (
-                <div className="space-y-4">
-                  {details.length > 0 && (
-                    <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-                      {details.map((d) => (
-                        <div key={d.label} className={cn("min-w-0", d.wide && "col-span-2")}>
-                          <dt className="text-[10px] uppercase tracking-[0.16em] text-stone-400">{d.label}</dt>
-                          <dd className="mt-0.5 break-words text-sm text-[#2F151B]">
-                            {d.href ? (
-                              <a href={d.href} target={d.href.startsWith("http") ? "_blank" : undefined} rel="noopener noreferrer" className="hover:text-[#800020] hover:underline">
-                                {d.value}
-                              </a>
-                            ) : (
-                              d.value
-                            )}
-                          </dd>
-                        </div>
-                      ))}
-                    </dl>
-                  )}
-                  {styleGroups.length > 0 && (
-                    <div className={cn("space-y-3", details.length > 0 && "border-t border-[#F0E4E7] pt-4")}>
-                      {styleGroups.map((g) => (
-                        <ChipList key={g.label} label={g.label} value={g.value} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </SectionCard>
-
-            <SectionCard title="Recent feedback" className="lg:col-start-1">
-              {feedback.length > 0 ? (
-                <ul className="space-y-3">
-                  {feedback.slice(0, 3).map((f) => (
-                    <li key={f.id} className="border-l-2 border-[#EEDFE3] pl-3">
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <Stars value={f.rating} />
-                        <span className="text-[10px] uppercase tracking-[0.15em] text-stone-400">{f.type}</span>
-                        <span className="ml-auto text-xs text-stone-400">{shortDate(f.date)}</span>
-                      </div>
-                      {f.feedback && <p className="mt-1 line-clamp-2 break-words text-sm text-stone-600">{f.feedback}</p>}
-                    </li>
-                  ))}
-                  {feedback.length > 3 && <li className="text-xs text-stone-400">+ {feedback.length - 3} older</li>}
-                </ul>
-              ) : (
-                <p className="text-sm text-stone-500">No feedback recorded yet.</p>
-              )}
-            </SectionCard>
+        {/* Customer 360: all ten sections at a glance, with direct navigation. */}
+        <TabsContent value="overview" className="mt-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div><h3 className="font-display text-xl font-semibold text-[#351322]">Customer at a glance</h3><p className="text-xs text-stone-500">A connected summary of the information recorded for {firstName}.</p></div>
+            <span className="rounded-full border border-[#EEDFE3] bg-[#FDF9FA] px-3 py-1 text-xs font-medium text-[#800020]">Customer 360°</span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {snapshotCards.map((card) => {
+              const Icon = card.icon;
+              return <button key={card.key} type="button" onClick={() => card.key === "personal" ? setEditOpen(true) : card.key === "fit" ? setTab("measurements") : setTab(card.key)}
+                className="group flex min-h-[170px] flex-col rounded-xl border border-[#EEDFE3] bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-[#C79A45] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#800020]">
+                <div className="flex items-center gap-2.5"><span className="grid size-9 place-items-center rounded-lg bg-[#800020]/10 text-[#800020]"><Icon className="size-4.5" /></span><h4 className="text-sm font-semibold text-[#351322]">{card.title}</h4><ChevronRight className="ml-auto size-4 text-stone-400 transition group-hover:translate-x-0.5 group-hover:text-[#800020]"/></div>
+                <p className="mt-3 line-clamp-2 text-sm font-medium text-[#493A40]">{card.summary}</p>
+                <div className="mt-1 space-y-0.5">{card.lines.slice(0,3).map((line,i) => <p key={i} className="line-clamp-1 text-xs text-stone-500">{line}</p>)}</div>
+                {card.key === "gallery" && gallery.length > 0 && <div className="mt-2 flex gap-1.5">{gallery.slice(0,3).map((image) => <img key={image.id} src={image.url} alt={image.title} loading="lazy" className="size-11 rounded-md border border-[#EEDFE3] object-cover"/>)}</div>}
+                <span className="mt-auto pt-3 text-xs font-semibold text-[#800020]">{card.action} →</span>
+              </button>;
+            })}
           </div>
         </TabsContent>
 
@@ -671,6 +638,21 @@ export default function CustomerProfile() {
             )}
           </SectionCard>
         </TabsContent>
+
+        <TabsContent value="fittings" className="mt-3"><SectionCard title={`Fittings · ${fittings.length}`}>
+          {fittings.length ? <div className="divide-y divide-[#EEDFE3]">{fittings.map((f) => <button key={f.id} onClick={() => openOrder(f.orderId)} className="flex w-full items-center justify-between gap-3 py-3 text-left hover:text-[#800020]"><span><span className="block text-sm font-medium">{f.garment}</span><span className="text-xs text-stone-500">{shortDate(f.date)} · {f.status}{f.notes ? ` · ${f.notes}` : ""}</span></span><ChevronRight className="size-4 shrink-0"/></button>)}</div> : <p className="text-sm text-stone-500">No fittings are linked to the loaded orders.</p>}
+        </SectionCard></TabsContent>
+        <TabsContent value="gallery" className="mt-3"><SectionCard title={`Saved images · ${gallery.length}`}>
+          {gallery.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{gallery.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border border-[#EEDFE3]"><img src={item.url} alt={item.title} loading="lazy" className="aspect-square w-full object-cover"/><p className="truncate p-2 text-xs text-stone-600">{item.title}</p></div>)}</div> : <p className="text-sm text-stone-500">No garment or concept images have been saved.</p>}
+        </SectionCard></TabsContent>
+        <TabsContent value="documents" className="mt-3"><SectionCard title="Customer documents"><p className="text-sm text-stone-500">A customer-specific document collection is not available from the current profile data. Quotations, invoices and sketches cannot yet be listed here reliably.</p></SectionCard></TabsContent>
+        <TabsContent value="feedback" className="mt-3"><SectionCard title={`Customer feedback · ${feedback.length}`}>
+          {feedback.length ? <div className="space-y-4">{[...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((f) => <div key={f.id} className="border-b border-[#EEDFE3] pb-3"><div className="flex items-center justify-between gap-2"><Stars value={f.rating}/><span className="text-xs text-stone-500">{shortDate(f.date)}</span></div><p className="mt-1 text-xs font-semibold text-[#800020]">{f.type}</p><p className="mt-1 text-sm text-stone-600">{f.feedback || "No written comment"}</p></div>)}</div> : <p className="text-sm text-stone-500">No customer feedback recorded yet.</p>}
+        </SectionCard></TabsContent>
+        <TabsContent value="activity" className="mt-3"><SectionCard title="Recent customer activity">
+          {recentActivity.length ? <div className="divide-y divide-[#EEDFE3]">{recentActivity.slice(0,30).map((item) => <button key={item.id} onClick={() => setTab(item.tab)} className="flex w-full items-center justify-between gap-3 py-3 text-left hover:text-[#800020]"><span className="text-sm">{item.title}</span><span className="shrink-0 text-xs text-stone-500">{shortDate(item.date)}</span></button>)}</div> : <p className="text-sm text-stone-500">No recorded order, measurement, fitting or feedback activity.</p>}
+          <p className="mt-3 text-xs text-stone-400">This timeline uses existing profile records; communication logs and appointments are not yet connected.</p>
+        </SectionCard></TabsContent>
 
         {/* Notes: one editor with a switch, instead of two stacked cards */}
         <TabsContent value="notes" className="mt-3">
