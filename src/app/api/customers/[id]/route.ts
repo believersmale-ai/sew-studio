@@ -59,7 +59,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   const orderIds = (ordersRes.data ?? []).map((order) => order.id);
   const [fittingsRes, quotesRes] = await Promise.all([
     orderIds.length
-      ? ctx.db.from("fittings").select("*").in("order_id", orderIds).eq("shop_id", ctx.shopId)
+      ? ctx.db.from("fittings").select("*").in("order_id", orderIds)
       : Promise.resolve({ data: [], error: null }),
     ctx.role === "madam"
       ? ctx.db.from("quotes").select("id, customer_id, garment, total, created_at, valid_until").eq("shop_id", ctx.shopId).eq("customer_id", id).order("created_at", { ascending: false })
