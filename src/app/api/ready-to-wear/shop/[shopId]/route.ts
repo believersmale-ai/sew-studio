@@ -11,7 +11,7 @@ export async function POST(req:Request,{params}:Ctx){
  const b=await req.json().catch(()=>({}));
  const quantity=Number(b.quantity),productId=String(b.productId??""),variantId=String(b.variantId??"");
  const name=String(b.name??"").trim(),phone=String(b.phone??"").trim(),email=String(b.email??"").trim(),address=String(b.address??"").trim(),city=String(b.city??"").trim(),notes=String(b.notes??"").trim();
- if(!uuid.test(productId)||!uuid.test(variantId)||!Number.isInteger(quantity)||quantity<1||quantity>20||name.length<2||name.length>150||phone.length<7||phone.length>30||address.length<8||address.length>500||!city||city.length>120||email.length>200||notes.length>1000)return Response.json({error:"Please provide valid order and delivery details"},{status:400});
+ if(!uuid.test(productId)||!uuid.test(variantId)||!Number.isInteger(quantity)||quantity<1||quantity>20||name.length<2||name.length>150||phone.length<7||phone.length>30||address.length<8||address.length>500||!city||city.length>120||email.length>200||!/^\\S+@\\S+\\.\\S+$/.test(email)||notes.length>1000)return Response.json({error:"Please provide valid order and delivery details"},{status:400});
  const client=await getPool().connect();
  try{
   await client.query("BEGIN");
