@@ -10,7 +10,7 @@ export async function paymentConfiguration() {
 
 export async function paystackSecret() {
  const config=await paymentConfiguration();
- const key=config.enabled ? config.key : "";
+ const key=config.key;
  if(!key)throw new Error("PAYSTACK_SECRET_KEY is not configured");
  return key;
 }
