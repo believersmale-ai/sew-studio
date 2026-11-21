@@ -109,6 +109,7 @@ interface CustomerDetail {
   measurements: MeasurementSet[];
   feedback: CustomerFeedback[];
   styleConcepts: StyleConcept[];
+  quotes?: { id: string; garment: string; total: number; createdAt: string; validUntil?: string | null }[];
 }
 
 /** wa.me needs an international number: 024… becomes 233 24… (Ghana). */
@@ -229,6 +230,7 @@ export default function CustomerProfile() {
   }
 
   const { customer, orders, measurements, feedback, styleConcepts } = data;
+  const quotes = data.quotes ?? [];
 
   const handleSaved = () => {
     qc.invalidateQueries({ queryKey: ["customer", selectedId] });
@@ -306,7 +308,7 @@ export default function CustomerProfile() {
     { key: "orders", title: "Orders", icon: ShoppingBag, summary: `${orders.length} total · ${inProgress} active`, lines: [`${completedOrders} completed · ${pendingOrders} pending`, latestOrder && `Latest: ${latestOrder.garmentDesign}`].filter(Boolean) as string[], action: "View orders" },
     { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} flagged alterations`, upcomingFittings[0] && `Next: ${shortDate(upcomingFittings[0].date)}`].filter(Boolean) as string[], action: "View fittings" },
     { key: "gallery", title: "Gallery", icon: ImageIcon, summary: `${gallery.length} saved images`, lines: gallery.slice(0,2).map((g) => g.title), action: "View gallery" },
-    { key: "documents", title: "Documents", icon: FileText, summary: "Document library", lines: ["No customer document records available in this profile yet"], action: "View documents" },
+    { key: "documents", title: "Documents", icon: FileText, summary: `${quotes.length} saved quotations`, lines: quotes.length ? quotes.slice(0,2).map((q) => `${q.garment} · ${shortDate(q.createdAt)}`) : ["No quotations linked to this customer"], action: "View documents" },
     { key: "feedback", title: "Feedback", icon: Heart, summary: `${feedback.length} feedback entries`, lines: [...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0,1).map((f) => `${f.rating}/5 · ${f.feedback || f.type}`), action: "View feedback" },
     { key: "activity", title: "Recent activity", icon: Activity, summary: `${recentActivity.length} recorded events`, lines: recentActivity.slice(0,2).map((a) => `${shortDate(a.date)} · ${a.title}`), action: "View activity" },
   ];
@@ -645,7 +647,7 @@ export default function CustomerProfile() {
         <TabsContent value="gallery" className="mt-3"><SectionCard title={`Saved images · ${gallery.length}`}>
           {gallery.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{gallery.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border border-[#EEDFE3]"><img src={item.url} alt={item.title} loading="lazy" className="aspect-square w-full object-cover"/><p className="truncate p-2 text-xs text-stone-600">{item.title}</p></div>)}</div> : <p className="text-sm text-stone-500">No garment or concept images have been saved.</p>}
         </SectionCard></TabsContent>
-        <TabsContent value="documents" className="mt-3"><SectionCard title="Customer documents"><p className="text-sm text-stone-500">A customer-specific document collection is not available from the current profile data. Quotations, invoices and sketches cannot yet be listed here reliably.</p></SectionCard></TabsContent>
+        <TabsContent value="documents" className="mt-3"><SectionCard title="Customer documents">{quotes.length ? <div className="divide-y divide-[#EEDFE3]">{quotes.map((q) => <div key={q.id} className="flex items-center justify-between gap-3 py-3"><span><span className="block text-sm font-semibold text-[#351322]">{q.garment}</span><span className="text-xs text-stone-500">Quotation · {shortDate(q.createdAt)}</span></span>{canSeeMoney && <span className="text-sm font-medium text-[#800020]">{formatCurrency(q.total)}</span>}</div>)}</div> : <p className="text-sm text-stone-500">No quotations linked to this customer.</p>}<p className="mt-3 text-xs text-stone-400">Other document types (invoices, sketches and uploads) are not yet available through the customer profile API.</p></SectionCard></TabsContent>
         <TabsContent value="feedback" className="mt-3"><SectionCard title={`Customer feedback · ${feedback.length}`}>
           {feedback.length ? <div className="space-y-4">{[...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((f) => <div key={f.id} className="border-b border-[#EEDFE3] pb-3"><div className="flex items-center justify-between gap-2"><Stars value={f.rating}/><span className="text-xs text-stone-500">{shortDate(f.date)}</span></div><p className="mt-1 text-xs font-semibold text-[#800020]">{f.type}</p><p className="mt-1 text-sm text-stone-600">{f.feedback || "No written comment"}</p></div>)}</div> : <p className="text-sm text-stone-500">No customer feedback recorded yet.</p>}
         </SectionCard></TabsContent>
