@@ -1,11 +1,14 @@
 import { getPool } from "@/lib/db/pool";
-import { paystackRequest } from "@/lib/ready-to-wear-paystack";
+import { paymentConfiguration, paystackRequest } from "@/lib/ready-to-wear-paystack";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function POST(req:Request){
  const body=await req.json().catch(()=>({})),id=String(body.orderId??"");
  if(!uuid.test(id))return Response.json({error:"Invalid order"},{status:400});
+ if(!(await paymentConfiguration()).enabled)return Response.json({error:"Online payments are not enabled"},{status:503});
+ const phone=String(body.phone??"").trim();
+ if(phone.length<7||phone.length>30)return Response.json({error:"Order phone is required"},{status:400});
  const pool=getPool();
- const {rows}=await pool.query("select id,customer_email,total,payment_reference,payment_status from public.rtw_orders where id=$1 and status='Pending payment'",[id]);
+ const {rows}=await pool.query("select id,customer_email,total,payment_reference,payment_status from public.rtw_orders where id=$1 and customer_phone=$2 and payment_method='paystack' and status='Pending payment'",[id,phone]);
  if(!rows.length)return Response.json({error:"Order is not awaiting payment"},{status:404});
  const order=rows[0];
  if(!order.customer_email)return Response.json({error:"An email address is required to pay online"},{status:400});
