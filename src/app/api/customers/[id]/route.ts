@@ -54,6 +54,26 @@ export async function GET(req: NextRequest, { params }: Ctx) {
       .order("created_at", { ascending: false }),
   ]);
 
+  // Load fittings through orders belonging to this customer and studio.
+  // Quote visibility follows the existing owner-only policy.
+  const orderIds = (ordersRes.data ?? []).map((order) => order.id);
+  const [fittingsRes, quotesRes] = await Promise.all([
+    orderIds.length
+      ? ctx.db.from("fittings").select("*").in("order_id", orderIds)
+      : Promise.resolve({ data: [], error: null }),
+    ctx.role === "madam"
+      ? ctx.db.from("quotes").select("id, customer_id, garment, total, created_at, valid_until").eq("shop_id", ctx.shopId).eq("customer_id", id).order("created_at", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (fittingsRes.error) return NextResponse.json({ error: "Unable to load customer fittings" }, { status: 500 });
+  if (quotesRes.error) return NextResponse.json({ error: "Unable to load customer quotations" }, { status: 500 });
+  const fittingsByOrder = new Map<string, typeof fittingsRes.data>();
+  for (const fitting of fittingsRes.data ?? []) {
+    const existing = fittingsByOrder.get(fitting.order_id) ?? [];
+    existing.push(fitting);
+    fittingsByOrder.set(fitting.order_id, existing);
+  }
+
   // Cast needed: this file's hand-maintained Relationships metadata can't
   // resolve the assigned_staff embed, so postgrest-js falls back to `never`
   // even though the runtime shape (and serializeOrder, which accepts a
@@ -63,7 +83,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
   return NextResponse.json({
     customer: serializeCustomer(customer),
     orders: (ordersRes.data as unknown as OrderWithStaffRow[] ?? []).map((o) =>
-      serializeOrder({ ...o, assigned_staff: o.assigned_staff })
+      { const order = serializeOrder({ ...o, assigned_staff: o.assigned_staff }); return { ...order, fittings: (fittingsByOrder.get(o.id) ?? []).map((f) => ({ id: f.id, orderId: f.order_id, date: f.date, status: f.status, notes: f.notes })) }; }
     ),
     measurements: (measurementsRes.data ?? []).map((m) => ({
       ...serializeMeasurementSet(m),
@@ -71,6 +91,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     })),
     feedback: (feedbackRes.data ?? []).map(serializeCustomerFeedback),
     styleConcepts: (styleConceptsRes.data ?? []).map(serializeStyleConcept),
+    quotes: (quotesRes.data ?? []).map((q) => ({ id: q.id, garment: q.garment, total: q.total, createdAt: q.created_at, validUntil: q.valid_until })),
   });
 }
 

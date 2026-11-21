@@ -11,6 +11,12 @@ export interface Database {
   __InternalSupabase: { PostgrestVersion: "12" };
   public: {
     Tables: {
+      customer_interactions: {
+        Row: { id: string; shop_id: string; customer_id: string; kind: "call" | "message" | "appointment" | "visit" | "note"; subject: string; details: string | null; occurred_at: string; created_at: string };
+        Insert: Pick<Database["public"]["Tables"]["customer_interactions"]["Row"], "shop_id" | "customer_id" | "kind" | "subject"> & Partial<Database["public"]["Tables"]["customer_interactions"]["Row"]>;
+        Update: Partial<Database["public"]["Tables"]["customer_interactions"]["Row"]>;
+        Relationships: [];
+      };
       inventory_items: {
         Row: {
           id: string; shop_id: string; name: string; sku: string | null; category: string;
