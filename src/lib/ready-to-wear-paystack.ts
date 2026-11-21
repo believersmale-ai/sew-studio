@@ -1,22 +1,30 @@
 import { getPool } from "@/lib/db/pool";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getSettings } from "@/lib/integration-settings";
 
-export function paystackSecret() {
- const key=process.env.PAYSTACK_SECRET_KEY;
+export async function paymentConfiguration() {
+ const settings = await getSettings(["paystack_secret_key","paystack_enabled"] as const);
+ return { enabled: settings.paystack_enabled === "true" && /^sk_(test|live)_/.test(settings.paystack_secret_key), key: settings.paystack_secret_key };
+}
+
+
+export async function paystackSecret() {
+ const config=await paymentConfiguration();
+ const key=config.enabled ? config.key : "";
  if(!key)throw new Error("PAYSTACK_SECRET_KEY is not configured");
  return key;
 }
 export async function paystackRequest(path:string, options?:RequestInit){
  const response=await fetch(`https://api.paystack.co${path}`,{
-  ...options,headers:{Authorization:`Bearer ${paystackSecret()}`,"Content-Type":"application/json",...(options?.headers||{})},cache:"no-store"
+  ...options,headers:{Authorization:`Bearer ${await paystackSecret()}`,"Content-Type":"application/json",...(options?.headers||{})},cache:"no-store"
  });
  const result=await response.json().catch(()=>({}));
  if(!response.ok||result.status!==true)throw new Error("Payment provider request failed");
  return result.data;
 }
-export function verifyPaystackSignature(body:string,signature:string|null){
+export async function verifyPaystackSignature(body:string,signature:string|null){
  if(!signature||!/^[a-f0-9]{64}$/i.test(signature))return false;
- const expected=createHmac("sha512",paystackSecret()).update(body).digest();
+ const expected=createHmac("sha512",await paystackSecret()).update(body).digest();
  const supplied=Buffer.from(signature,"hex");
  return supplied.length===expected.length&&timingSafeEqual(expected,supplied);
 }
