@@ -10,11 +10,12 @@ export async function GET(_req:Request,{params}:Ctx){
 }
 export async function POST(req:Request,{params}:Ctx){
  const {shopId}=await params;if(!uuid.test(shopId))return Response.json({error:"Invalid shop"},{status:400});
- if(!(await paymentConfiguration()).enabled)return Response.json({error:"Online checkout is not available yet. The shop owner is setting up payments."},{status:503});
  const b=await req.json().catch(()=>({}));
+ const method=b.paymentMethod==="paystack"?"paystack":"manual";
+ if(method==="paystack"&&!(await paymentConfiguration()).enabled)return Response.json({error:"Online payments are not available yet. Choose manual payment."},{status:503});
  const quantity=Number(b.quantity),productId=String(b.productId??""),variantId=String(b.variantId??"");
  const name=String(b.name??"").trim(),phone=String(b.phone??"").trim(),email=String(b.email??"").trim(),address=String(b.address??"").trim(),city=String(b.city??"").trim(),notes=String(b.notes??"").trim();
- if(!uuid.test(productId)||!uuid.test(variantId)||!Number.isInteger(quantity)||quantity<1||quantity>20||name.length<2||name.length>150||phone.length<7||phone.length>30||address.length<8||address.length>500||!city||city.length>120||email.length>200||!/^\\S+@\\S+\\.\\S+$/.test(email)||notes.length>1000)return Response.json({error:"Please provide valid order and delivery details"},{status:400});
+ if(!uuid.test(productId)||!uuid.test(variantId)||!Number.isInteger(quantity)||quantity<1||quantity>20||name.length<2||name.length>150||phone.length<7||phone.length>30||address.length<8||address.length>500||!city||city.length>120||email.length>200||(method==="paystack"&&!/^\S+@\S+\.\S+$/.test(email))||notes.length>1000)return Response.json({error:"Please provide valid order and delivery details"},{status:400});
  const client=await getPool().connect();
  try{
   await client.query("BEGIN");
@@ -22,8 +23,8 @@ export async function POST(req:Request,{params}:Ctx){
   if(!rows.length||rows[0].stock<quantity){await client.query("ROLLBACK");return Response.json({error:"This size or colour is out of stock"},{status:409})}
   const total=(Number(rows[0].price)*quantity).toFixed(2);
   await client.query("update public.rtw_variants set stock=stock-$2 where id=$1",[variantId,quantity]);
-  const order=await client.query("insert into public.rtw_orders(shop_id,product_id,variant_id,quantity,unit_price,total,customer_name,customer_phone,customer_email,delivery_address,delivery_city,delivery_notes) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) returning id,status,payment_status",[shopId,productId,variantId,quantity,rows[0].price,total,name,phone,email||null,address,city,notes||null]);
+  const order=await client.query("insert into public.rtw_orders(shop_id,product_id,variant_id,quantity,unit_price,total,customer_name,customer_phone,customer_email,delivery_address,delivery_city,delivery_notes,payment_method) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id,status,payment_status",[shopId,productId,variantId,quantity,rows[0].price,total,name,phone,email||null,address,city,notes||null,method]);
   await client.query("COMMIT");
-  return Response.json({orderId:order.rows[0].id,status:"Pending payment",paymentStatus:"Unpaid",total,message:"Order received. Payment instructions will be provided by the seller; do not send money until confirmed."},{status:201});
+  return Response.json({orderId:order.rows[0].id,status:"Pending payment",paymentStatus:"Unpaid",total,paymentMethod:method,message:method==="manual"?"Order received. Contact the studio to arrange payment, then submit your transaction reference. Your order stays unpaid until the studio verifies receipt.":"Order created. Proceed to secure Paystack checkout."},{status:201});
  }catch{return Response.json({error:"Unable to place order"},{status:500})}finally{try{await client.query("ROLLBACK")}catch{}client.release()}
 }
