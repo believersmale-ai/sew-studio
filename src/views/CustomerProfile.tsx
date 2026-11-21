@@ -203,13 +203,18 @@ export default function CustomerProfile() {
     queryFn:()=>apiGet(`/api/customers/${selectedId}/alterations`),
     enabled:!!selectedId,
   });
+  const { data: alterationStaff = [] } = useQuery<{id:string;name:string}[]>({
+    queryKey:["alteration-staff",selectedId],
+    queryFn:()=>apiGet(`/api/customers/${selectedId}/alterations/staff`),
+    enabled:!!selectedId && (owner || canCreate),
+  });
   const addAlteration = useMutation({
     mutationFn:()=>apiPost(`/api/customers/${selectedId}/alterations`,{orderId:alterationOrder,description:alterationDescription,dueDate:alterationDue||null}),
     onSuccess:()=>{setAlterationDescription("");setAlterationDue("");qc.invalidateQueries({queryKey:["customer-alterations",selectedId]});toast.success("Alteration request created");},
     onError:(e:Error)=>toast.error(e.message),
   });
   const updateAlteration = useMutation({
-    mutationFn:({id,status}:{id:string;status:string})=>apiPatch(`/api/customers/${selectedId}/alterations`,{id,status}),
+    mutationFn:({id,status,assignedTo}:{id:string;status:string;assignedTo?:string})=>apiPatch(`/api/customers/${selectedId}/alterations`,{id,status,...(assignedTo?{assignedTo}:{})}),
     onSuccess:()=>{qc.invalidateQueries({queryKey:["customer-alterations",selectedId]});toast.success("Alteration updated");},
     onError:(e:Error)=>toast.error(e.message),
   });
@@ -349,6 +354,7 @@ export default function CustomerProfile() {
   const upcomingFittings = fittings.filter((f) => !/complete|done|cancel/i.test(f.status) && new Date(f.date).getTime() >= new Date().setHours(0,0,0,0));
   const completedFittings = fittings.filter((f) => /complete|done/i.test(f.status));
   const alterations = alterationRecords.filter((a) => !["Completed","Cancelled"].includes(a.status));
+  const overdueAlterations = alterations.filter((a) => a.dueDate && new Date(a.dueDate).getTime() < new Date().setHours(0,0,0,0));
   const gallery = [
     ...styleConcepts.filter((c) => !!c.imageUrl).map((c) => ({ id: c.id, url: c.imageUrl!, title: c.conceptName })),
     ...orders.filter((o) => !!o.designImage).map((o) => ({ id: o.id, url: o.designImage!, title: o.garmentDesign })),
@@ -369,7 +375,7 @@ export default function CustomerProfile() {
     { key: "fit", title: "Proportions & fit", icon: ClipboardList, summary: customer.preferredFit || "Fit preference not recorded", lines: [latestMeasurements?.posture && `Posture: ${latestMeasurements.posture}`, latestMeasurements?.notes, customer.styleNotes].filter(Boolean) as string[], action: "View fit details" },
     { key: "style", title: "Style profile", icon: Sparkles, summary: customer.preferredStyles || "No preferred styles recorded", lines: [customer.favouriteColours && `Colours: ${customer.favouriteColours}`, customer.favouriteFabrics && `Fabrics: ${customer.favouriteFabrics}`, customer.designPreferences].filter(Boolean) as string[], action: "View style" },
     { key: "orders", title: "Orders", icon: ShoppingBag, summary: `${orders.length} total · ${inProgress} active`, lines: [`${completedOrders} completed · ${pendingOrders} pending`, latestOrder && `Latest: ${latestOrder.garmentDesign}`].filter(Boolean) as string[], action: "View orders" },
-    { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} open alterations`, upcomingFittings[0] && `Next fitting: ${shortDate(upcomingFittings[0].date)}`, upcomingAppointments[0] && `Next appointment: ${shortDate(upcomingAppointments[0].occurredAt)}`].filter(Boolean) as string[], action: "View fittings" },
+    { key: "fittings", title: "Fittings", icon: CalendarDays, summary: `${upcomingFittings.length} upcoming · ${completedFittings.length} completed`, lines: [`${alterations.length} open alterations · ${overdueAlterations.length} overdue`, upcomingFittings[0] && `Next fitting: ${shortDate(upcomingFittings[0].date)}`, upcomingAppointments[0] && `Next appointment: ${shortDate(upcomingAppointments[0].occurredAt)}`].filter(Boolean) as string[], action: "View fittings" },
     { key: "gallery", title: "Gallery", icon: ImageIcon, summary: `${gallery.length} saved images`, lines: gallery.slice(0,2).map((g) => g.title), action: "View gallery" },
     { key: "documents", title: "Documents", icon: FileText, summary: `${quotes.length} quotations · ${customerDocuments.length} files`, lines: [...quotes.slice(0,1).map((q) => `${q.garment} · ${shortDate(q.createdAt)}`), ...customerDocuments.slice(0,2).map((d) => `${d.category}: ${d.name}`)], action: "View documents" },
     { key: "feedback", title: "Feedback", icon: Heart, summary: `${feedback.length} feedback entries`, lines: [...feedback].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0,1).map((f) => `${f.rating}/5 · ${f.feedback || f.type}`), action: "View feedback" },
@@ -716,7 +722,9 @@ export default function CustomerProfile() {
             <label className="block text-xs text-stone-600">Due date (optional)<input type="date" value={alterationDue} onChange={(e)=>setAlterationDue(e.target.value)} className="mt-1 block h-10 w-full rounded-lg border border-[#EEDFE3] bg-white px-3 text-sm"/></label>
             <button type="submit" disabled={!alterationOrder||!alterationDescription.trim()||addAlteration.isPending} className="rounded-lg bg-[#800020] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">Create alteration</button>
           </form>}
-          {alterationRecords.length ? <div className="divide-y divide-[#EEDFE3]">{alterationRecords.map((a)=><div key={a.id} className="space-y-2 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={()=>openOrder(a.orderId)} className="text-sm font-semibold text-[#351322] hover:text-[#800020]">{a.garment} <ChevronRight className="inline size-3"/></button><span className="text-xs text-stone-500">{a.dueDate ? `Due ${shortDate(a.dueDate)}` : "No due date"}</span></div><p className="text-sm text-stone-600">{a.description}</p><div className="flex items-center gap-2"><span className="text-xs text-stone-500">Status</span>{(owner||canCreate) ? <select aria-label={`Status for ${a.garment}`} value={a.status} disabled={updateAlteration.isPending} onChange={(e)=>updateAlteration.mutate({id:a.id,status:e.target.value})} className="rounded-md border border-[#EEDFE3] bg-white px-2 py-1.5 text-xs">{["Requested","Assigned","In Progress","Ready","Completed","Cancelled"].map((v)=><option key={v}>{v}</option>)}</select> : <span className="text-xs font-medium text-[#800020]">{a.status}</span>}</div></div>)}</div> : <p className="text-sm text-stone-500">No alteration requests recorded.</p>}
+          {overdueAlterations.length > 0 && <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm font-medium text-amber-900">{overdueAlterations.length} overdue alteration{overdueAlterations.length===1?"":"s"} require attention.</p>}
+          {alterationRecords.length ? <div className="divide-y divide-[#EEDFE3]">{alterationRecords.map((a)=><div key={a.id} className="space-y-2 py-3"><div className="flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={()=>openOrder(a.orderId)} className="text-sm font-semibold text-[#351322] hover:text-[#800020]">{a.garment} <ChevronRight className="inline size-3"/></button><span className="text-xs text-stone-500">{a.dueDate ? `Due ${shortDate(a.dueDate)}` : "No due date"}</span></div><p className="text-sm text-stone-600">{a.description}</p><div className="flex items-center gap-2">{(owner||canCreate) && <label className="text-xs text-stone-600">Designer <select aria-label={`Designer for ${a.garment}`} value={a.assignedTo ?? ""} disabled={updateAlteration.isPending} onChange={(e)=>{if(e.target.value)updateAlteration.mutate({id:a.id,status:a.status==="Requested"?"Assigned":a.status,assignedTo:e.target.value});}} className="ml-1 rounded-md border border-[#EEDFE3] bg-white px-2 py-1.5 text-xs"><option value="">Unassigned</option>{alterationStaff.map((member)=><option key={member.id} value={member.id}>{member.name}</option>)}</select></label>}
+          <span className="text-xs text-stone-500">Status</span>{(owner||canCreate) ? <select aria-label={`Status for ${a.garment}`} value={a.status} disabled={updateAlteration.isPending} onChange={(e)=>updateAlteration.mutate({id:a.id,status:e.target.value})} className="rounded-md border border-[#EEDFE3] bg-white px-2 py-1.5 text-xs">{["Requested","Assigned","In Progress","Ready","Completed","Cancelled"].map((v)=><option key={v}>{v}</option>)}</select> : <span className="text-xs font-medium text-[#800020]">{a.status}</span>}</div></div>)}</div> : <p className="text-sm text-stone-500">No alteration requests recorded.</p>}
         </SectionCard></TabsContent>
         <TabsContent value="gallery" className="mt-3"><SectionCard title={`Saved images · ${gallery.length}`}>
           {gallery.length ? <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">{gallery.map((item) => <div key={item.id} className="overflow-hidden rounded-lg border border-[#EEDFE3]"><img src={item.url} alt={item.title} loading="lazy" className="aspect-square w-full object-cover"/><p className="truncate p-2 text-xs text-stone-600">{item.title}</p></div>)}</div> : <p className="text-sm text-stone-500">No garment or concept images have been saved.</p>}
