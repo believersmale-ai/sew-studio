@@ -67,6 +67,7 @@ export default async function HomePage() {
                 {home.heroSecondaryCta}
               </a>
             </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center"><Link href="/ready-to-wear" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#e6c58d] px-6 py-3 text-sm font-bold text-[#35121d] transition hover:bg-white"><Shirt className="size-4"/> Shop ready-to-wear dresses <ArrowRight className="size-4"/></Link><Link href="/ready-to-wear/track" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/35 px-6 py-3 text-sm font-semibold text-white hover:bg-white/10">Track my order</Link></div>
             {home.heroNote && <p className="mt-6 text-sm text-white/60">{home.heroNote}</p>}
           </div>
 
