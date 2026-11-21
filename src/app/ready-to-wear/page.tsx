@@ -10,7 +10,7 @@ export default async function ReadyToWearLanding(){
  try{
   const {rows}=await getPool().query(`select s.id,s.name,s.slug,count(distinct p.id)::integer as items,(array_agg(p.image_url order by p.created_at desc) filter(where p.image_url is not null))[1] as preview
     from public.shops s join public.rtw_products p on p.shop_id=s.id
-    where p.published=true and exists(select 1 from public.rtw_variants v where v.product_id=p.id and v.stock>0)
+    where p.published=true and s.suspended_at is null and exists(select 1 from public.rtw_variants v where v.product_id=p.id and v.stock>0)
     group by s.id,s.name,s.slug order by s.name asc limit 60`);
   studios=rows;
  }catch(e){unavailable=true;console.error("[rtw] website collection listing failed",e)}
