@@ -41,13 +41,13 @@ function SiteHeader({ content }: { content: WebsiteContent }) {
       <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-5 px-5 sm:px-8">
         <Link href="/" aria-label={`${site.name} home`} className="shrink-0"><BrandLogo width={132} /></Link>
         <nav aria-label="Main navigation" className="hidden items-center gap-7 lg:flex">
-          {nav.items.map((item) => <NavLink key={`${item.href}-${item.label}`} href={item.href} className="text-[13px] font-semibold text-[#765d63] transition hover:text-[#800020]">{item.label}</NavLink>)}
+          {[...nav.items.filter((item)=>item.href!=="/ready-to-wear"),{href:"/ready-to-wear",label:"Ready to Wear"}].map((item) => <NavLink key={`${item.href}-${item.label}`} href={item.href} className="text-[13px] font-semibold text-[#765d63] transition hover:text-[#800020]">{item.label}</NavLink>)}
         </nav>
         <div className="flex items-center gap-2.5">
           <a href={studioUrl} className="inline-flex h-11 items-center gap-2 rounded-full bg-[#800020] px-5 text-[13px] font-bold text-white shadow-[0_8px_20px_rgba(128,0,32,.18)] transition hover:-translate-y-0.5 hover:bg-[#650019]">
             <span className="whitespace-nowrap"><span className="hidden sm:inline">{nav.enterLabel}</span><span className="sm:hidden">{nav.enterLabelShort}</span></span> <ArrowUpRight className="size-4" />
           </a>
-          <MobileMenu items={nav.items} />
+          <MobileMenu items={[...nav.items.filter((item)=>item.href!=="/ready-to-wear"),{href:"/ready-to-wear",label:"Ready to Wear"}]} />
         </div>
       </div>
     </header>
@@ -65,7 +65,7 @@ function SiteFooter({ content }: { content: WebsiteContent }) {
           {contact.supportEmail && <a className="block hover:text-white" href={`mailto:${contact.supportEmail}`}>{contact.supportEmail}</a>}
           {contact.whatsappLink && <a className="block hover:text-white" href={contact.whatsappLink}>WhatsApp {contact.whatsappDisplay}</a>}
         </div></div>
-        <div><p className="text-xs font-bold uppercase tracking-[.2em] text-[#e5bd83]">Explore</p><div className="mt-4 space-y-3 text-sm text-white/70"><Link className="block hover:text-white" href="/our-story">Our story</Link><Link className="block hover:text-white" href="/#app">The platform</Link><Link className="block hover:text-white" href="/academy">Free Academy</Link><Link className="block hover:text-white" href="/privacy">Privacy</Link><Link className="block hover:text-white" href="/terms">Terms</Link>{contact.community && <a className="block hover:text-white" href={contact.community}>WhatsApp community</a>}</div></div>
+        <div><p className="text-xs font-bold uppercase tracking-[.2em] text-[#e5bd83]">Explore</p><div className="mt-4 space-y-3 text-sm text-white/70"><Link className="block hover:text-white" href="/our-story">Our story</Link><Link className="block hover:text-white" href="/#app">The platform</Link><Link className="block hover:text-white" href="/academy">Free Academy</Link><Link className="block hover:text-white" href="/ready-to-wear">Ready to Wear</Link><Link className="block hover:text-white" href="/privacy">Privacy</Link><Link className="block hover:text-white" href="/terms">Terms</Link>{contact.community && <a className="block hover:text-white" href={contact.community}>WhatsApp community</a>}</div></div>
       </div>
     </footer>
   );
