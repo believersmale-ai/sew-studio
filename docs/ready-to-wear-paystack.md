@@ -19,7 +19,7 @@
 - The customer is redirected to Paystack's hosted checkout; no card credentials are processed by this application.
 
 ## Outstanding before production
-- Delivery charges are **not included** in checkout total. Configure a shipping rate engine and disclose the final delivery charge before accepting payment; do not request an undisclosed delivery fee afterward.
+- Delivery currently costs **GHS 0** and the checkout explicitly discloses this. Implement configurable shipping rates before charging delivery fees; never add undisclosed charges after payment.
 - Inventory is reserved at order creation; abandoned/unpaid orders currently hold stock indefinitely. Implement expiry and safe restocking, with late-payment reconciliation, before live release.
 - Implement cancellation/refund and stock return workflows; courier tracking link, customer notifications and customer order status lookup.
 - Add payment initialization idempotency and rate limiting, bot protection, fraud monitoring and a reconciliation dashboard.
