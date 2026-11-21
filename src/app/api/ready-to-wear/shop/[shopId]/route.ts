@@ -1,13 +1,16 @@
+import { paymentConfiguration } from "@/lib/ready-to-wear-paystack";
 import { getPool } from "@/lib/db/pool";
 type Ctx={params:Promise<{shopId:string}>};
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function GET(_req:Request,{params}:Ctx){
  const {shopId}=await params;if(!uuid.test(shopId))return Response.json({error:"Invalid shop"},{status:400});
+ const config=await paymentConfiguration();
  const {rows}=await getPool().query("select p.id,p.title,p.description,p.category,p.price,p.image_url,coalesce(json_agg(json_build_object('id',v.id,'size',v.size,'color',v.color,'stock',v.stock)) filter(where v.id is not null),'[]') as variants from public.rtw_products p left join public.rtw_variants v on v.product_id=p.id where p.shop_id=$1 and p.published=true group by p.id order by p.created_at desc",[shopId]);
- return Response.json(rows,{headers:{"Cache-Control":"no-store"}});
+ return Response.json({products:rows,checkoutEnabled:config.enabled},{headers:{"Cache-Control":"no-store"}});
 }
 export async function POST(req:Request,{params}:Ctx){
  const {shopId}=await params;if(!uuid.test(shopId))return Response.json({error:"Invalid shop"},{status:400});
+ if(!(await paymentConfiguration()).enabled)return Response.json({error:"Online checkout is not available yet. The shop owner is setting up payments."},{status:503});
  const b=await req.json().catch(()=>({}));
  const quantity=Number(b.quantity),productId=String(b.productId??""),variantId=String(b.variantId??"");
  const name=String(b.name??"").trim(),phone=String(b.phone??"").trim(),email=String(b.email??"").trim(),address=String(b.address??"").trim(),city=String(b.city??"").trim(),notes=String(b.notes??"").trim();
