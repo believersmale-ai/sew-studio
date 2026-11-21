@@ -511,7 +511,7 @@ export default function CustomerProfile() {
 
       {/* Sections */}
       <Tabs value={tab} onValueChange={setTab} className="w-full">
-        <TabsList className="flex h-auto w-full max-w-full justify-start gap-0.5 overflow-x-auto rounded-lg border border-[#EEDFE3] bg-white p-1 scroll-slim sm:inline-flex sm:w-auto">
+        <TabsList className="flex h-auto min-w-0 w-full max-w-full flex-nowrap justify-start gap-1 overflow-x-auto overscroll-x-contain rounded-lg border border-[#EEDFE3] bg-white p-1 scroll-slim [scrollbar-width:thin] [-webkit-overflow-scrolling:touch] sm:w-full">
           {[
             { v: "overview", l: "Overview", n: null },
             { v: "orders", l: "Orders", n: orders.length },
@@ -528,7 +528,7 @@ export default function CustomerProfile() {
             <TabsTrigger
               key={t.v}
               value={t.v}
-              className="min-h-10 shrink-0 flex-auto whitespace-nowrap rounded-md px-3.5 py-2 text-sm font-medium text-stone-600 data-[state=active]:bg-[#800020] data-[state=active]:text-white data-[state=active]:shadow-sm sm:px-4 sm:py-1.5"
+              className="min-h-10 !w-auto !min-w-max !max-w-none !shrink-0 !grow-0 !basis-auto whitespace-nowrap rounded-md px-3.5 py-2 text-sm font-medium text-stone-600 data-[state=active]:bg-[#800020] data-[state=active]:text-white data-[state=active]:shadow-sm sm:px-4 sm:py-1.5"
             >
               {t.l}
               {t.n ? <span className="ml-1.5 text-xs tabular-nums opacity-70">{t.n}</span> : null}
