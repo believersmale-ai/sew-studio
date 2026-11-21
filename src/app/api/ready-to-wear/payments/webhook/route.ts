@@ -2,7 +2,7 @@ import { verifyPaystackSignature, reconcilePayment } from "@/lib/ready-to-wear-p
 export async function POST(req:Request){
  const body=await req.text();
  try{
-  if(!verifyPaystackSignature(body,req.headers.get("x-paystack-signature")))return Response.json({error:"Invalid signature"},{status:401});
+  if(!await verifyPaystackSignature(body,req.headers.get("x-paystack-signature")))return Response.json({error:"Invalid signature"},{status:401});
   const event=JSON.parse(body);
   if(event.event==="charge.success"&&typeof event.data?.reference==="string")await reconcilePayment(event.data.reference);
   return Response.json({received:true});
