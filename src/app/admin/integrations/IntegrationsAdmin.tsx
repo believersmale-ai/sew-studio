@@ -6,7 +6,7 @@ import { api, apiErrorMessage, apiGet } from "@/lib/api";
 
 type Source = "admin" | "environment" | "default" | "none";
 interface SettingView {
-  key: string; group: "email" | "notifications" | "ai"; kind: "text" | "url" | "number" | "bool" | "secret";
+  key: string; group: "email" | "notifications" | "ai" | "payments"; kind: "text" | "url" | "number" | "bool" | "secret";
   label: string; help?: string; placeholder?: string; advanced: boolean;
   value: string; effective: string; source: Source; secretSet: boolean; secretHint: string; unreadable: boolean;
 }
@@ -20,6 +20,7 @@ const ghostBtn = "inline-flex h-9 items-center gap-1.5 rounded-lg border border-
 const GROUPS: { id: SettingView["group"]; title: string; intro: string; tests: { target: Target; label: string }[] }[] = [
   { id: "email", title: "Email delivery", intro: "Password resets, Academy sign-in codes, freelancer verification and training sign-ups are sent with this. Resend is tried first, then SMTP, then the Apps Script.", tests: [{ target: "email", label: "Send test email" }] },
   { id: "notifications", title: "Customer notifications", intro: "Order updates to customers (WhatsApp, SMS, email) go through your Google Apps Script web app.", tests: [{ target: "apps-script", label: "Send test notification" }] },
+  { id: "payments", title: "Ready-to-Wear payments", intro: "Configure Paystack later. Checkout remains disabled until you enable it and provide a valid secret key. Configure the webhook in Paystack before accepting live payments.", tests: [] },
   { id: "ai", title: "AI features", intro: "Style Assist concepts, concept sketches and Trend Insights.", tests: [{ target: "anthropic", label: "Check Anthropic key" }, { target: "openai", label: "Check OpenAI key" }] },
 ];
 
