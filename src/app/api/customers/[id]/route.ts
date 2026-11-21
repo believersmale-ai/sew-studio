@@ -54,6 +54,13 @@ export async function GET(req: NextRequest, { params }: Ctx) {
       .order("created_at", { ascending: false }),
   ]);
 
+  for (const [section, result] of Object.entries({ orders: ordersRes, measurements: measurementsRes, feedback: feedbackRes, styleConcepts: styleConceptsRes })) {
+    if (result.error) {
+      console.error("[customer-profile] required section query failed", { section, shopId: ctx.shopId, error: result.error });
+      return NextResponse.json({ error: "Unable to load customer data", section }, { status: 500 });
+    }
+  }
+
   // Load fittings through orders belonging to this customer and studio.
   // Quote visibility follows the existing owner-only policy.
   const orderIds = (ordersRes.data ?? []).map((order) => order.id);
@@ -65,10 +72,12 @@ export async function GET(req: NextRequest, { params }: Ctx) {
       ? ctx.db.from("quotes").select("id, customer_id, garment, total, created_at, valid_until").eq("shop_id", ctx.shopId).eq("customer_id", id).order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (fittingsRes.error) return NextResponse.json({ error: "Unable to load customer fittings" }, { status: 500 });
-  if (quotesRes.error) return NextResponse.json({ error: "Unable to load customer quotations" }, { status: 500 });
+  // Fittings and quotations are supplementary profile sections. A schema mismatch,
+  // missing migration or permission issue must not hide the customer record.
+  if (fittingsRes.error) console.error("[customer-profile] fittings query failed", { shopId: ctx.shopId, error: fittingsRes.error });
+  if (quotesRes.error) console.error("[customer-profile] quotations query failed", { shopId: ctx.shopId, error: quotesRes.error });
   const fittingsByOrder = new Map<string, typeof fittingsRes.data>();
-  for (const fitting of fittingsRes.data ?? []) {
+  for (const fitting of (fittingsRes.error ? [] : fittingsRes.data) ?? []) {
     const existing = fittingsByOrder.get(fitting.order_id) ?? [];
     existing.push(fitting);
     fittingsByOrder.set(fitting.order_id, existing);
@@ -91,7 +100,7 @@ export async function GET(req: NextRequest, { params }: Ctx) {
     })),
     feedback: (feedbackRes.data ?? []).map(serializeCustomerFeedback),
     styleConcepts: (styleConceptsRes.data ?? []).map(serializeStyleConcept),
-    quotes: (quotesRes.data ?? []).map((q) => ({ id: q.id, garment: q.garment, total: q.total, createdAt: q.created_at, validUntil: q.valid_until })),
+    quotes: ((quotesRes.error ? [] : quotesRes.data) ?? []).map((q) => ({ id: q.id, garment: q.garment, total: q.total, createdAt: q.created_at, validUntil: q.valid_until })),
   });
 }
 
