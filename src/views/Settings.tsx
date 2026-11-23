@@ -293,7 +293,7 @@ export default function Settings() {
           e.preventDefault();
           const pricingError = canManageQuotePricing ? validateQuotePricing(garmentLabour, complexityLevels) : null;
           if (pricingError) { toast.error(pricingError); return; }
-          saveMutation.mutate();
+          if (!saveMutation.isPending) saveMutation.mutate();
         }}
         className="mt-6"
       >
