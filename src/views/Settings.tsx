@@ -152,7 +152,7 @@ export default function Settings() {
   useEffect(() => {
     if (!data) return;
     setStudioNameField(data.studioName ?? "");
-    setOwnerGender(data.ownerGender ?? "Female");
+    setOwnerGender(data.ownerGender === "Male" || data.ownerGender === "Master" ? "Male" : "Female");
     setCurrency(data.currency ?? "GHS");
     setOverheadAmount(data.overheadAmount ?? 0);
     setOverheadRecoveryBasis(data.overheadRecoveryBasis ?? 0);
@@ -298,7 +298,7 @@ export default function Settings() {
         className="mt-6"
       >
         <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] items-start">
-          <nav aria-label="Settings sections" className="lg:sticky lg:top-6 flex lg:flex-col gap-1 overflow-x-auto rounded-xl border border-[#EEDFE3] bg-white p-1.5">
+          <nav aria-label="Settings sections" className="lg:sticky lg:top-6 flex lg:flex-col gap-1 overflow-x-auto min-w-0 max-w-full rounded-xl border border-[#EEDFE3] bg-white p-1.5 [scrollbar-width:thin]">
             {SETTINGS_TABS.map((t) => (
               <button
                 key={t.key}
@@ -306,7 +306,7 @@ export default function Settings() {
                 onClick={() => setTab(t.key)}
                 aria-current={tab === t.key ? "page" : undefined}
                 className={cn(
-                  "flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm whitespace-nowrap transition",
+                  "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs sm:text-sm whitespace-nowrap transition",
                   tab === t.key ? "bg-[#800020] text-white font-medium" : "text-stone-600 hover:bg-stone-50"
                 )}
               >
@@ -823,8 +823,8 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-[#EEDFE3] bg-white px-4 py-3 sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-4 z-20 shadow-sm">
-          <p className="text-xs text-stone-500 text-center sm:text-left">Changes across all sections are saved together.</p>
+        <div className="mt-6 flex items-center justify-end gap-3 rounded-xl border border-[#EEDFE3] bg-white px-3 py-2 sm:px-4 sm:py-3 sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-4 z-20 shadow-sm">
+          <p className="hidden sm:block text-xs text-stone-500">Changes across all sections are saved together.</p>
           <PremiumButton type="submit" loading={saveMutation.isPending} size="lg">
             <Save className="w-4 h-4" />
             Save settings
