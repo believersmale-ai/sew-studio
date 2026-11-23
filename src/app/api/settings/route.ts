@@ -35,7 +35,10 @@ export async function PATCH(req: Request) {
     const ctx = await getTenant();
     if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json();
+    const body: Record<string, any> = await req.json();
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return Response.json({ error: "Invalid settings payload." }, { status: 400 });
+    }
     if (("quoteGarmentLabour" in body || "quoteComplexityLevels" in body || "quoteItemPresets" in body || "quoteExtraPresets" in body) && ctx.role !== "madam") {
       return Response.json({ error: "Only the studio owner can change quote pricing defaults." }, { status: 403 });
     }
@@ -82,8 +85,12 @@ export async function PATCH(req: Request) {
     }
 
     if ("quoteGarmentLabour" in body || "quoteComplexityLevels" in body) {
-      const garmentRaw = body.quoteGarmentLabour;
-      const levelRaw = body.quoteComplexityLevels;
+      // A partial update must not silently fail because the other array was omitted.
+      const { data: currentPricing, error: pricingReadError } = await ctx.db.from("settings")
+        .select("quote_garment_labour, quote_complexity_levels").eq("id", settings.id).single();
+      if (pricingReadError) throw pricingReadError;
+      const garmentRaw = body.quoteGarmentLabour ?? currentPricing.quote_garment_labour;
+      const levelRaw = body.quoteComplexityLevels ?? currentPricing.quote_complexity_levels;
       if (!Array.isArray(garmentRaw) || !Array.isArray(levelRaw) ||
           garmentRaw.some((x: any) => typeof x?.name !== "string" || !x.name.trim() || x.name.trim().length > 80 || typeof x.baseLabour !== "number" || !Number.isFinite(x.baseLabour) || x.baseLabour < 0 || x.baseLabour > 10000000) ||
           levelRaw.some((x: any) => typeof x?.name !== "string" || !x.name.trim() || x.name.trim().length > 80 || typeof x.multiplier !== "number" || !Number.isFinite(x.multiplier) || x.multiplier <= 0 || x.multiplier > 100)) {
@@ -208,10 +215,13 @@ export async function PATCH(req: Request) {
     // Keep the two in sync whenever the owner changes it here — otherwise
     // the session would keep reporting the shop's old currency forever.
     if ("currency" in body && body.currency != null) {
-      await ctx.db
+      const { error: shopCurrencyError } = await ctx.db
         .from("shops")
         .update({ currency: String(body.currency) })
         .eq("id", ctx.shopId);
+      if (shopCurrencyError) {
+        return Response.json({ error: "Settings were saved, but shop currency synchronization failed. Please retry.", details: shopCurrencyError.message }, { status: 500 });
+      }
     }
 
     return Response.json(serializeSettings(updated));
