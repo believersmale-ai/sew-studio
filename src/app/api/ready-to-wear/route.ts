@@ -4,6 +4,7 @@ import { cleanImageRef } from "@/lib/image-ref";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function GET() {
  const ctx=await getTenant(); if(!ctx)return Response.json({error:"Unauthorized"},{status:401});
+ if(ctx.role!=="madam")return Response.json({error:"Only the owner can manage products"},{status:403});
  const {rows}=await getPool().query("select p.*,coalesce(json_agg(json_build_object('id',v.id,'size',v.size,'color',v.color,'stock',v.stock)) filter(where v.id is not null),'[]') as variants from public.rtw_products p left join public.rtw_variants v on v.product_id=p.id where p.shop_id=$1 group by p.id order by p.created_at desc",[ctx.shopId]);
  return Response.json(rows);
 }
@@ -23,7 +24,7 @@ export async function POST(req:Request) {
   const {rows}=await client.query("insert into public.rtw_products(shop_id,title,description,category,price,image_url,published) values($1,$2,$3,$4,$5,$6,$7) returning id",[ctx.shopId,title,description,category,price,image??null,b.published===true]);
   for(const v of variants)await client.query("insert into public.rtw_variants(product_id,size,color,stock) values($1,$2,$3,$4)",[rows[0].id,String(v.size).trim(),String(v.color).trim(),v.stock]);
   await client.query("COMMIT");return Response.json({id:rows[0].id},{status:201});
- }catch{return Response.json({error:"Unable to save product; check duplicate sizes and colours"},{status:500})}finally{try{await client.query("ROLLBACK")}catch{}client.release()}
+ }catch(err){console.error("Ready-to-wear product creation failed", {shopId:ctx.shopId,code:(err as {code?:string})?.code});return Response.json({error:"Unable to save product; check duplicate sizes and colours"},{status:500})}finally{try{await client.query("ROLLBACK")}catch{}client.release()}
 }
 
 export async function PATCH(req:Request){
