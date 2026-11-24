@@ -21,6 +21,9 @@ const nextConfig: NextConfig = {
   async headers() {
     const immutable = "public, max-age=31536000, immutable";
     return [
+      { source: "/:path*", headers: [{ key: "X-Content-Type-Options", value: "nosniff" }, { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" }] },
+      { source: "/api/auth/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
+      { source: "/api/admin/:path*", headers: [{ key: "Cache-Control", value: "no-store" }] },
       { source: "/icon-:size.png", headers: [{ key: "Cache-Control", value: immutable }] },
       { source: "/logo.svg", headers: [{ key: "Cache-Control", value: "public, max-age=604800" }] },
       { source: "/atelier-login.jpg", headers: [{ key: "Cache-Control", value: "public, max-age=604800" }] },
