@@ -31,6 +31,7 @@ export type ViewKey =
   | "messages"
   | "my-jobs"
   | "profile"
+  | "ready-to-wear"
   | "settings";
 
 interface NavState {
