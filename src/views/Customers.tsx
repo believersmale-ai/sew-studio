@@ -98,13 +98,15 @@ export default function Customers() {
   const scopeToMine = !!user && !canSeeAllCustomers();
   const canCreate = canCreateOrders();
   const qc = useQueryClient();
+  const [segment,setSegment]=useState("all");
+  const [sort,setSort]=useState("name");
   const [search, setSearch] = useState("");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   // The first-steps card sends owners here with ?add so the form is already open.
   const [addOpen, setAddOpen] = useState(() => useNav.getState().params.add === "1");
 
-  const { data: customers = [], isLoading } = useQuery<CustomerWithCount[]>({
+  const { data: customers = [], isLoading, isError, refetch } = useQuery<CustomerWithCount[]>({
     queryKey: ["customers"],
     queryFn: () => apiGet<CustomerWithCount[]>("/api/customers"),
   });
@@ -112,12 +114,14 @@ export default function Customers() {
   // Fallback for client-side order counts when the collection endpoint
   // doesn't include `_orderCount`. Also used to derive the visible customer
   // set for staff/trainees (only customers of orders assigned to them).
-  const { data: orders = [] } = useQuery<Order[]>({
+  const { data: orders = [], isLoading: ordersLoading, isError: ordersError, refetch: retryOrders } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: () => apiGet<Order[]>("/api/orders"),
     retry: false,
   });
 
+  const rosterLoading=isLoading||(scopeToMine&&ordersLoading);
+  const rosterError=isError||(scopeToMine&&ordersError);
   const myCustomerIds = useMemo(() => {
     if (!scopeToMine || !user) return null;
     const set = new Set<string>();
@@ -146,9 +150,9 @@ export default function Customers() {
         .filter((c) => !myCustomerIds || myCustomerIds.has(c.id))
         .map((c) => ({
           ...c,
-          _orderCount: c._orderCount ?? orderCounts.get(c.id) ?? 0,
+          _orderCount: scopeToMine ? (orderCounts.get(c.id) ?? 0) : (c._orderCount ?? (ordersLoading||ordersError ? undefined : orderCounts.get(c.id) ?? 0)),
         })),
-    [customers, orderCounts, myCustomerIds]
+    [customers, orderCounts, myCustomerIds, scopeToMine, ordersLoading, ordersError]
   );
 
   const filtered = useMemo(() => {
@@ -158,14 +162,16 @@ export default function Customers() {
         !q ||
         (c.name || "").toLowerCase().includes(q) ||
         (c.phone || "").toLowerCase().includes(q) ||
-        (c.email || "").toLowerCase().includes(q);
+        (c.email || "").toLowerCase().includes(q) || (c.city || "").toLowerCase().includes(q) || (c.preferredStyles || "").toLowerCase().includes(q);
       const matchesSource =
         sourceFilter === "all" || (c.entrySource || "Other") === sourceFilter;
       const matchesType =
         typeFilter === "all" || (c.customerType || "") === typeFilter;
-      return matchesSearch && matchesSource && matchesType;
-    });
-  }, [enriched, search, sourceFilter, typeFilter]);
+      const n=c._orderCount;
+      const matchesSegment=segment==="all"||(n!==undefined&&(segment==="repeat"?n>=2:segment==="first"?n===1:n===0));
+      return matchesSearch && matchesSource && matchesType && matchesSegment;
+    }).sort((a,b)=>sort==="orders"?(b._orderCount??-1)-(a._orderCount??-1):sort==="recent"?new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime():(a.name||"").localeCompare(b.name||""));
+  }, [enriched, search, sourceFilter, typeFilter, segment, sort]);
 
   const sourceBreakdown = useMemo(() => {
     const map = new Map<string, number>();
@@ -192,7 +198,7 @@ export default function Customers() {
         d.getFullYear() === now.getFullYear()
       );
     }).length;
-    return { total, vips, bridal, newThisMonth };
+    return { total, vips, bridal, newThisMonth, repeat: enriched.filter(c=>(c._orderCount??0)>=2).length };
   }, [enriched]);
 
   const handleCreated = () => {
@@ -231,7 +237,7 @@ export default function Customers() {
       <AddCustomerDialog open={addOpen} onOpenChange={setAddOpen} onCreated={handleCreated} />
 
       {/* Premium stat strip */}
-      {!isLoading && enriched.length > 0 && (
+      {!rosterLoading && !rosterError && enriched.length > 0 && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 animate-fade-in-up">
           <PremiumMetric
             label="Total Clients"
@@ -263,7 +269,7 @@ export default function Customers() {
           <div className="relative md:col-span-1">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
             <Input
-              placeholder="Search by name, phone, or email…"
+              placeholder="Name, phone, email, city or style…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 h-11 bg-white border-[#EEDFE3] rounded-md"
@@ -297,10 +303,11 @@ export default function Customers() {
             </SelectContent>
           </Select>
         </div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2"><select aria-label="Customer order segment" className="rounded-md border p-2 text-sm" value={segment} onChange={e=>setSegment(e.target.value)}><option value="all">All customers</option><option value="repeat">Repeat customers (2+ orders)</option><option value="first">One order</option><option value="none">No orders yet</option></select><select aria-label="Sort customers" className="rounded-md border p-2 text-sm" value={sort} onChange={e=>setSort(e.target.value)}><option value="name">Name A–Z</option><option value="recent">Newest customers</option><option value="orders">Most orders</option></select></div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-600"><span>{rosterLoading||rosterError?"—":`${filtered.length} matching customers`}{!rosterLoading&&!rosterError&&enriched.every(c=>c._orderCount!==undefined)&&` · ${stats.repeat} repeat customers`}</span><button type="button" className="underline text-[#800020]" onClick={()=>{setSearch("");setSourceFilter("all");setTypeFilter("all");setSegment("all");setSort("name");}}>Reset filters</button></div>
       </SectionCard>
-
+      {!scopeToMine&&ordersError&&<p role="alert" className="mb-4 text-sm">Some order counts may be unavailable. <button className="underline" onClick={()=>void retryOrders()}>Retry</button></p>}
       {/* Client sources breakdown */}
-      {sourceBreakdown.length > 0 && (
+      {!rosterLoading&&!rosterError&&sourceBreakdown.length > 0 && (
         <SectionCard title="Client Sources" className="mb-6" bodyClassName="p-4">
           <div className="flex flex-wrap gap-2">
             {sourceBreakdown.map(([src, count]) => (
@@ -327,25 +334,25 @@ export default function Customers() {
       )}
 
       {/* Customer list */}
-      {isLoading ? (
+      {rosterLoading ? (
         <SectionCard bodyClassName="p-0">
           <SkeletonList rows={4} />
         </SectionCard>
-      ) : filtered.length === 0 ? (
+      ) : rosterError ? (<SectionCard><p role="alert" className="p-4 text-sm">Could not load customer roster. <button className="underline" onClick={()=>{void refetch();if(scopeToMine)void retryOrders();}}>Retry</button></p></SectionCard>) : filtered.length === 0 ? (
         <SectionCard bodyClassName="p-0">
           <EmptyState
             icon={Users}
             title={
               scopeToMine
                 ? "No clients assigned to you yet"
-                : search || sourceFilter !== "all" || typeFilter !== "all"
+                : search || sourceFilter !== "all" || typeFilter !== "all" || segment !== "all"
                 ? "No customers match your filters"
                 : "No customers found"
             }
             description={
               scopeToMine
                 ? "When the studio assigns you an order, the client will appear here."
-                : search || sourceFilter !== "all" || typeFilter !== "all"
+                : search || sourceFilter !== "all" || typeFilter !== "all" || segment !== "all"
                 ? "Try clearing your search or filters."
                 : "Add your first customer to start building the roster."
             }
@@ -353,7 +360,7 @@ export default function Customers() {
               !scopeToMine &&
               !search &&
               sourceFilter === "all" &&
-              typeFilter === "all" &&
+              typeFilter === "all" && segment === "all" &&
               canCreate ? (
                 <PremiumButton
                   variant="primary"
@@ -363,7 +370,7 @@ export default function Customers() {
                   <UserPlus className="w-4 h-4" /> Add Customer
                 </PremiumButton>
               ) : !scopeToMine &&
-                (search || sourceFilter !== "all" || typeFilter !== "all") ? (
+                (search || sourceFilter !== "all" || typeFilter !== "all" || segment !== "all") ? (
                 <PremiumButton
                   variant="outline"
                   size="sm"
@@ -371,6 +378,7 @@ export default function Customers() {
                     setSearch("");
                     setSourceFilter("all");
                     setTypeFilter("all");
+                    setSegment("all");
                   }}
                 >
                   Clear filters
@@ -422,7 +430,7 @@ export default function Customers() {
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FAF0F2] border border-[#EEDFE3] px-2.5 py-1 text-xs text-stone-600">
                     <span className="font-semibold tabular-nums text-[#2F151B]">
-                      {c._orderCount}
+                      {c._orderCount ?? "—"}
                     </span>
                     <span className="text-stone-400">
                       {c._orderCount === 1 ? "order" : "orders"}
@@ -460,6 +468,7 @@ function AddCustomerDialog({
     setForm((f) => ({ ...f, [key]: value }));
 
   const handleOpenChange = (v: boolean) => {
+    if (saving) return;
     if (!v) reset();
     onOpenChange(v);
   };
@@ -482,6 +491,7 @@ function AddCustomerDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (saving) return;
     if (!form.name.trim()) {
       toast.error("Name is required");
       return;
@@ -537,6 +547,7 @@ function AddCustomerDialog({
               </Label>
               <Input
                 id="c-phone"
+                type="tel"
                 value={form.phone}
                 onChange={(e) => set("phone", e.target.value)}
                 placeholder="+233…"
