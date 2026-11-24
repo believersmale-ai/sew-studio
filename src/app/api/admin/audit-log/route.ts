@@ -1,3 +1,4 @@
+import { adminHasArea } from "@/lib/admin-access";
 import { NextResponse } from "next/server";
 import { getSystemAdminSession } from "@/lib/db/session";
 import { getPool } from "@/lib/db/pool";
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getSystemAdminSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!adminHasArea(session, "audit")) return NextResponse.json({error:"Forbidden"},{status:403});
   try {
     const { rows } = await getPool().query(
       `select l.id, l.action, l.entity, l.entity_id as "entityId", l.details,
