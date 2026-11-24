@@ -65,6 +65,8 @@ interface DesignRequest {
 
 interface ConceptDraft {
   tempId: string;
+  originalRequest?: DesignRequest;
+  originalConfidence?: DataConfidence;
   conceptName: string;
   silhouette?: string | null;
   neckline?: string | null;
@@ -180,7 +182,7 @@ export default function StyleAssist() {
     return <CustomerPicker onPick={(id) => go("style-assist", { id })} />;
   }
 
-  return <StyleAssistForCustomer customerId={selectedId} />;
+  return <StyleAssistForCustomer key={selectedId} customerId={selectedId} />;
 }
 
 // ============================================================
@@ -188,7 +190,8 @@ export default function StyleAssist() {
 // ============================================================
 
 function CustomerPicker({ onPick }: { onPick: (id: string) => void }) {
-  const { data: customers, isLoading, isError } = useQuery<Customer[]>({
+  const [search,setSearch]=useState("");
+  const { data: customers, isLoading, isError, refetch } = useQuery<Customer[]>({
     queryKey: ["customers"],
     queryFn: () => apiGet<Customer[]>("/api/customers"),
   });
@@ -238,6 +241,7 @@ function CustomerPicker({ onPick }: { onPick: (id: string) => void }) {
               <Label className="text-[11px] uppercase tracking-[0.22em] text-stone-400 font-semibold">
                 Select customer
               </Label>
+              <Input aria-label="Search clients" placeholder="Search by customer name" value={search} onChange={e=>setSearch(e.target.value)}/>
               <Select onValueChange={onPick} disabled={isLoading || isError}>
                 <SelectTrigger aria-label="Choose a customer" className="w-full h-11 rounded-md text-sm">
                   <SelectValue
@@ -251,7 +255,7 @@ function CustomerPicker({ onPick }: { onPick: (id: string) => void }) {
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {customers?.map((c) => (
+                  {customers?.filter(c=>c.name.toLowerCase().includes(search.trim().toLowerCase())).map((c) => (
                     <SelectItem key={c.id} value={c.id}>
                       <span className="flex items-center gap-2">
                         <span className="w-5 h-5 rounded-full bg-[#800020]/10 text-[#800020] text-[11px] font-semibold inline-flex items-center justify-center">
@@ -265,8 +269,7 @@ function CustomerPicker({ onPick }: { onPick: (id: string) => void }) {
               </Select>
               {isError && (
                 <p className="text-xs text-red-600">
-                  We couldn&apos;t reach the customer list. Please try again
-                  later.
+                  We couldn&apos;t reach the customer list. <button type="button" className="underline" onClick={()=>void refetch()}>Retry</button>
                 </p>
               )}
               <div className="flex items-center gap-2 pt-3 text-xs text-stone-400">
@@ -326,10 +329,14 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
 
   // ---------- generate ----------
   const handleGenerate = async () => {
+    if (generating || savingKey || visualizingKeys.size) return;
+    if (request.budget.trim() && (!Number.isFinite(Number(request.budget)) || Number(request.budget)<0)) { toast.error("Enter a valid non-negative budget."); return; }
     if (!request.garmentType.trim()) {
       toast.error("Please specify a garment type.");
       return;
     }
+    if (drafts.length && !window.confirm("Replace unsaved concepts with a new generation?")) return;
+    const originalRequest={...request};
     setGenerating(true);
     try {
       const payload = {
@@ -350,6 +357,8 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
       const newDrafts: ConceptDraft[] = (res.concepts ?? []).map((c, i) => ({
         ...c,
         tempId: `draft-${Date.now()}-${i}`,
+        originalRequest,
+        originalConfidence: res.dataConfidence,
       }));
       setDrafts(newDrafts);
       toast.success(
@@ -370,7 +379,7 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
   // ---------- visualize ----------
   const handleVisualize = async (concept: ConceptFields) => {
     const key = conceptKey(concept);
-    if (!key) return;
+    if (!key || generating || savingKey || visualizingKeys.has(key)) return;
     setVisualizingKeys((prev) => new Set(prev).add(key));
     try {
       const res = await apiPost<{ imageUrl: string }>(
@@ -378,6 +387,7 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
         { concept }
       );
       const imageUrl = res.imageUrl;
+      if (!imageUrl) throw new Error("No concept image was returned.");
 
       if (concept.id) {
         await apiPatch<StyleConcept>(`/api/style-concepts/${concept.id}`, {
@@ -412,14 +422,14 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
     rejectionReason?: string
   ) => ({
     customerId,
-    garmentType: request.garmentType,
-    occasion: request.occasion || undefined,
-    desiredLook: request.desiredLook || undefined,
-    season: request.season || undefined,
-    budget: request.budget ? Number(request.budget) : undefined,
-    colourPreference: request.colourPreference || undefined,
-    fabricAvailable: request.fabricAvailable || undefined,
-    designerDirection: request.designerDirection || undefined,
+    garmentType: (draft.originalRequest ?? request).garmentType,
+    occasion: (draft.originalRequest ?? request).occasion || undefined,
+    desiredLook: (draft.originalRequest ?? request).desiredLook || undefined,
+    season: (draft.originalRequest ?? request).season || undefined,
+    budget: (draft.originalRequest ?? request).budget ? Number((draft.originalRequest ?? request).budget) : undefined,
+    colourPreference: (draft.originalRequest ?? request).colourPreference || undefined,
+    fabricAvailable: (draft.originalRequest ?? request).fabricAvailable || undefined,
+    designerDirection: (draft.originalRequest ?? request).designerDirection || undefined,
     conceptName: draft.conceptName,
     silhouette: draft.silhouette,
     neckline: draft.neckline,
@@ -436,10 +446,11 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
     imageUrl: draft.imageUrl,
     status,
     rejectionReason,
-    dataConfidence: dataConfidence ?? undefined,
+    dataConfidence: draft.originalConfidence ?? dataConfidence ?? undefined,
   });
 
   const handleApprove = async (draft: ConceptDraft) => {
+    if (savingKey || generating || visualizingKeys.has(draft.tempId)) return;
     setSavingKey(draft.tempId);
     try {
       await apiPost<StyleConcept>(
@@ -461,6 +472,7 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
   };
 
   const handleReject = async (draft: ConceptDraft, reason: string) => {
+    if (savingKey || generating || visualizingKeys.has(draft.tempId)) return;
     setSavingKey(draft.tempId);
     try {
       await apiPost<StyleConcept>(
@@ -635,7 +647,7 @@ function StyleAssistForCustomer({ customerId }: { customerId: string }) {
                     onVisualize={() => handleVisualize(draft)}
                     onConvert={() => handleConvert(draft)}
                     visualizing={visualizingKeys.has(draft.tempId)}
-                    saving={savingKey === draft.tempId}
+                    saving={!!savingKey || generating}
                   />
                 </div>
               ))}
@@ -1124,6 +1136,7 @@ function DesignRequestForm({
             id="sa-budget"
             type="number"
             min={0}
+            step="0.01"
             className="rounded-md h-10 tabular-nums"
             placeholder="e.g. 2500"
             value={value.budget}
@@ -1178,7 +1191,7 @@ function DesignRequestForm({
         <PremiumButton
           onClick={onGenerate}
           loading={generating}
-          disabled={!value.garmentType.trim()}
+          disabled={generating || !value.garmentType.trim()}
           size="lg"
         >
           {generating ? (
@@ -1297,7 +1310,7 @@ function ConceptCard({
             {/* Burgundy gradient pill */}
             <div className="inline-flex items-center gap-1 text-xs font-semibold text-white px-2.5 py-1.5 rounded-full bg-[#800020]">
               <Sparkles className="w-3 h-3" />
-              {concept.matchPercent}% match
+              {concept.matchPercent}% estimated match
             </div>
           </div>
         )}
