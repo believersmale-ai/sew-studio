@@ -4,9 +4,9 @@ import { getAppBaseUrl } from "@/lib/website-content.server";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+  const email = typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
 
-  if (email) {
+  if (email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     try {
       const db = await createRequestClient();
       const appUrl = await getAppBaseUrl(req);
@@ -19,5 +19,5 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
 }
