@@ -160,6 +160,9 @@ export default function Team() {
     !role.isOwner() && owner?.canManageFreelancers === true;
   const { go } = useNav();
   const qc = useQueryClient();
+  const [search,setSearch]=useState("");
+  const [rosterRole,setRosterRole]=useState("all");
+  const [availability,setAvailability]=useState("all");
   const [tab, setTab] = useState("staff");
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addTraineeOpen, setAddTraineeOpen] = useState(false);
@@ -210,6 +213,10 @@ export default function Team() {
     [users, freelancers]
   );
 
+  const q=search.trim().toLowerCase();
+  const matchingUsers=users.filter(u=>`${u.fullName} ${u.email??""} ${u.phone??""}`.toLowerCase().includes(q));
+  const staffUsers=matchingUsers.filter(u=>u.role!=="trainee"&&(rosterRole==="all"||u.role===rosterRole));
+  const matchingFreelancers=freelancers.filter(f=>`${f.name} ${f.specialty??""} ${f.skills??""}`.toLowerCase().includes(q)&&(availability==="all"||f.status===availability));
   const mentors = useMemo(
     () =>
       users
@@ -232,28 +239,28 @@ export default function Team() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <PremiumMetric
           label="Staff"
-          value={<AnimatedNumber value={stats.staff} />}
+          value={usersQ.isLoading||usersQ.isError?"—":<AnimatedNumber value={stats.staff} />}
           icon={UsersRound}
           accent
         />
         <PremiumMetric
           label="Trainers"
-          value={<AnimatedNumber value={stats.trainers} />}
+          value={usersQ.isLoading||usersQ.isError?"—":<AnimatedNumber value={stats.trainers} />}
           icon={GraduationCap}
         />
         <PremiumMetric
           label="Trainees"
-          value={<AnimatedNumber value={stats.trainees} />}
+          value={usersQ.isLoading||usersQ.isError?"—":<AnimatedNumber value={stats.trainees} />}
           icon={GraduationCap}
         />
         <PremiumMetric
           label="Freelancers"
-          value={<AnimatedNumber value={stats.freelancers} />}
+          value={freelancersQ.isLoading||freelancersQ.isError?"—":<AnimatedNumber value={stats.freelancers} />}
           icon={Briefcase}
         />
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="w-full">
+      <Tabs value={tab} onValueChange={v=>{setTab(v);setSearch("");}} className="w-full">
         <TabsList className="bg-white border border-[#EEDFE3] rounded-lg h-auto p-1 overflow-x-auto max-w-full flex w-full justify-start sm:inline-flex sm:w-auto gap-0.5">
           <TabsTrigger
             value="staff"
@@ -275,9 +282,11 @@ export default function Team() {
           </TabsTrigger>
         </TabsList>
 
+        <div className="mt-4 grid gap-2 sm:grid-cols-2"><Input aria-label="Search team" placeholder={tab==="freelancers"?"Search name, specialty or skills":"Search name, email or phone"} value={search} onChange={e=>setSearch(e.target.value)}/>{tab==="staff"&&<select aria-label="Staff role" className="rounded-md border bg-white p-2 text-sm" value={rosterRole} onChange={e=>setRosterRole(e.target.value)}><option value="all">All staff roles</option><option value="madam">Owner</option><option value="staff">Staff</option><option value="trainer">Trainer</option></select>}{tab==="freelancers"&&<select aria-label="Freelancer availability" className="rounded-md border bg-white p-2 text-sm" value={availability} onChange={e=>setAvailability(e.target.value)}><option value="all">All availability</option>{FREELANCER_STATUSES.map(v=><option key={v}>{v}</option>)}</select>}</div>
+        {((tab==="staff"&&usersQ.isError)||(tab==="trainees"&&(usersQ.isError||trainingLogsQ.isError))||(tab==="freelancers"&&freelancersQ.isError))&&<p role="alert" className="mt-3 rounded-md border p-3 text-sm">Some team information could not load. <button className="underline text-[#800020]" onClick={()=>{if(tab==="freelancers")void freelancersQ.refetch();else{void usersQ.refetch();if(tab==="trainees")void trainingLogsQ.refetch();}}}>Retry</button></p>}
         <TabsContent value="staff" className="mt-5">
-          <StaffTrainersCard
-            users={users}
+          {!usersQ.isError && <StaffTrainersCard
+            users={staffUsers}
             isLoading={usersQ.isLoading}
             ownerId={owner?.id}
             onAdd={() => setAddMemberOpen(true)}
@@ -292,12 +301,12 @@ export default function Team() {
                 ? permissionMutation.variables?.id
                 : null
             }
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="trainees" className="mt-5">
-          <TraineesCard
-            users={users}
+          {!usersQ.isError&&!trainingLogsQ.isError&&<TraineesCard
+            users={matchingUsers}
             logs={trainingLogs}
             mentors={mentors}
             canEdit={canEditTrainees}
@@ -305,16 +314,16 @@ export default function Team() {
             isLoading={usersQ.isLoading || trainingLogsQ.isLoading}
             onAdd={() => setAddTraineeOpen(true)}
             onView={(id) => go("progress", { id })}
-          />
+          />}
         </TabsContent>
 
         <TabsContent value="freelancers" className="mt-5 space-y-5">
-          <FreelancersCard
-            freelancers={freelancers}
+          {!freelancersQ.isError&&<FreelancersCard
+            freelancers={matchingFreelancers}
             isLoading={freelancersQ.isLoading}
             onAdd={() => setAddFreelancerOpen(true)}
             canAdd={canAddFreelancers}
-          />
+          />}
           {(role.isOwner() || owner?.canManageFreelancers === true) && <FreelancerMarketplace />}
           <FreelanceJobsSection freelancers={freelancers} />
         </TabsContent>
@@ -486,7 +495,7 @@ function StaffTrainersCard({
                 >
                   {initialOf(u.fullName)}
                 </div>
-                <div className="flex-1 min-w-[12rem]">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-[#2F151B] break-words">
                       {u.fullName}
@@ -533,7 +542,7 @@ function StaffTrainersCard({
                         onCheckedChange={(v) =>
                           onToggleFreelancerAccess(u.id, v)
                         }
-                        disabled={togglingId === u.id}
+                        disabled={!!togglingId}
                         aria-label={`Freelancer access for ${u.fullName}`}
                       />
                       Freelancers
@@ -691,7 +700,7 @@ function FreelancersCard({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 pl-14 sm:pl-0">
+                <div className="flex flex-wrap items-center justify-start sm:justify-end gap-3 sm:gap-4 min-w-0">
                   {f.rateNotes && (
                     <div
                       className="hidden lg:block text-xs text-stone-500 italic max-w-[180px] truncate"
@@ -1198,7 +1207,7 @@ function AddMemberDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) return;
-    createMutation.mutate(form);
+    if (!createMutation.isPending) createMutation.mutate(form);
   }
 
   function handleOpenChange(v: boolean) {
@@ -1404,7 +1413,7 @@ function AddTraineeDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) return;
-    createMutation.mutate(form);
+    if (!createMutation.isPending) createMutation.mutate(form);
   }
 
   function handleOpenChange(v: boolean) {
@@ -1871,7 +1880,7 @@ function AddFreelancerDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!valid) return;
-    createMutation.mutate(form);
+    if (!createMutation.isPending) createMutation.mutate(form);
   }
 
   function handleOpenChange(v: boolean) {
