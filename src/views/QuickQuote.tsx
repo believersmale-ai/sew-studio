@@ -93,6 +93,7 @@ export default function QuickQuote() {
 
   const [garment, setGarment] = useState<GarmentType>("Gown");
   const [fabric, setFabric] = useState<FabricType>("Lace");
+  const [fabricRate, setFabricRate] = useState<number | null>(null);
   const [yards, setYards] = useState<number>(3);
   const [complexity, setComplexity] = useState<Complexity>("Moderate");
   const [embellishment, setEmbellishment] = useState<Embellishment>("None");
@@ -116,7 +117,7 @@ export default function QuickQuote() {
   const [extraPresets, setExtraPresets] = useState<{name:string;price:number;cost:number}[]>(STARTER_EXTRAS);
   const shopName = useAuth(a => a.user?.shop?.name);
   const canManagePresets = useRole(s => s.role === "madam");
-  const { data: pricingSettings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
+  const { data: pricingSettings, isLoading: pricingLoading, isError: pricingError, refetch: retryPricing } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   useEffect(() => {
     if (!pricingSettings) return;
     setItemPresets(mergeItemPresets(pricingSettings.quoteItemPresets ?? []));
@@ -156,6 +157,7 @@ export default function QuickQuote() {
     toast.success("Studio extra suggestion removed.");
   };
   const addItem = () => {
+    if (!Number.isFinite(itemQty) || itemQty <= 0) { toast.error("Enter a positive quantity."); return; }
     if (!itemName.trim()) { toast.error("Enter an item name."); return; }
     setItems(v => [...v, {id:id(),name:itemName.trim(),quantity:Math.max(0,itemQty),unitCost:Math.max(0,itemCost)}]);
     const saved = [...itemPresets.filter(x => x.name.toLowerCase() !== itemName.trim().toLowerCase()),{name:itemName.trim(),unitCost:Math.max(0,itemCost)}];
@@ -187,7 +189,7 @@ export default function QuickQuote() {
   }, [complexityRates, complexity]);
   const calc = useMemo(() => {
     const fabricBase =
-      FABRICS.find((f) => f.label === fabric)?.basePerYard ?? 150;
+      fabricRate ?? FABRICS.find((f) => f.label === fabric)?.basePerYard ?? 150;
     const safeYards = Math.max(0, Number(yards) || 0);
 
     const fabricCost = clientFabric ? 0 : fabricBase * safeYards;
@@ -244,17 +246,20 @@ export default function QuickQuote() {
       extrasCost,
       extrasPrice,
     };
-  }, [garment, fabric, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost, labourBaseOverride, rushPercentOverride, garmentDefault, complexityMultiplier]);
+  }, [garment, fabric, fabricRate, yards, complexity, embellishment, rush, pricingSettings, wastagePct, otherCosts, markupOverride, finalOverride, discountPct, depositOverride, items, extras, clientFabric, handlingCost, labourBaseOverride, rushPercentOverride, garmentDefault, complexityMultiplier]);
 
   const qc = useQueryClient();
   const [quoteCustomerId, setQuoteCustomerId] = useState("");
-  const [validDays, setValidDays] = useState("14");
+  const [validDaysOverride, setValidDays] = useState<string | null>(null);
+  const validDays = validDaysOverride ?? String(pricingSettings?.quoteValidDays ?? 14);
+  const canQuote = !!pricingSettings && !pricingLoading && !pricingError && Number.isFinite(calc.total) && calc.total > 0 && Number.isFinite(Number(validDays)) && Number(validDays) >= 0 && Number(validDays) <= 3650;
   const { data: customers = [] } = useQuery<Customer[]>({
     queryKey: ["customers"],
     queryFn: () => apiGet<Customer[]>("/api/customers"),
   });
   const saveQuote = useMutation({
     mutationFn: () => {
+      if (!canQuote) throw new Error("Check pricing settings and quote validity before saving.");
       const until = new Date(Date.now() + Number(validDays) * 864e5).toISOString().slice(0, 10);
       const c = customers.find((x) => x.id === quoteCustomerId);
       return apiPost("/api/quotes", {
@@ -264,7 +269,7 @@ export default function QuickQuote() {
         total: calc.total,
         deposit: calc.suggestedDeposit,
         validUntil: until,
-        inputs: { garment, fabric, yards, complexity, complexityMultiplier, embellishment, rush, labourBase: calc.labourBase, labour: calc.labour, rushPercent: calc.rushPercent, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
+        inputs: { garment, fabric, fabricRate: calc.fabricBase, yards, complexity, complexityMultiplier, embellishment, rush, labourBase: calc.labourBase, labour: calc.labour, rushPercent: calc.rushPercent, wastagePct, otherCosts, items, extras, clientFabric, handlingCost, markup: calc.markup, finalPrice: calc.finalPrice, discountPct, trueCost: calc.trueCost, profit: calc.estMargin, overhead: calc.overhead, depositPct: calc.depositPct },
       });
     },
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["quotes"] }); toast.success("Quote saved"); },
@@ -272,6 +277,7 @@ export default function QuickQuote() {
   });
 
   const handleConvert = () => {
+    if (!canQuote) return;
     go("new-order", {
       params: {
         garment: `${garment} — ${fabric}`,
@@ -329,7 +335,7 @@ export default function QuickQuote() {
             <Label htmlFor="qq-fabric">Fabric</Label>
             <Select
               value={fabric}
-              onValueChange={(v) => setFabric(v as FabricType)}
+              onValueChange={(v) => { setFabric(v as FabricType); setFabricRate(null); }}
             >
               <SelectTrigger id="qq-fabric" className="w-full bg-white">
                 <SelectValue />
@@ -347,6 +353,7 @@ export default function QuickQuote() {
             </p>
           </div>
 
+          <div className="grid gap-1"><Label htmlFor="qq-fabric-rate">Actual fabric cost per yard</Label><Input id="qq-fabric-rate" type="number" min={0} step="0.01" disabled={clientFabric} value={calc.fabricBase} onChange={e=>setFabricRate(Math.max(0,Number(e.target.value)||0))}/>{fabricRate !== null && <button type="button" className="text-left text-xs underline text-[#800020]" onClick={()=>setFabricRate(null)}>Restore suggested fabric rate</button>}</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="grid gap-1.5">
               <Label htmlFor="qq-yards">Yards</Label>
@@ -382,7 +389,7 @@ export default function QuickQuote() {
             <p className="font-semibold text-sm">Labour costing</p>
             <p className="text-xs text-stone-500">Labour cost = base labour rate × selected complexity multiplier. Included in True Cost, not profit.</p>
             <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
-              <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour (GHS)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? garmentDefault} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-labour-base">Base labour  (studio currency)</Label><Input id="qq-labour-base" type="number" min={0} value={labourBaseOverride ?? garmentDefault} onChange={e=>setLabourBaseOverride(Math.max(0,Number(e.target.value)||0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-complexity-multiplier">Complexity multiplier ×</Label><Input id="qq-complexity-multiplier" type="number" min={0.01} max={100} step={0.05} value={complexityMultiplier} onChange={e=>setComplexityMultiplierOverride(Math.min(100,Math.max(0.01,Number(e.target.value)||0.01)))} /></div>
             </div>
             <p className="text-sm font-medium">Calculated labour: {formatCurrency(calc.labour)}</p>
@@ -411,14 +418,14 @@ export default function QuickQuote() {
           </div>
 
           <div className="flex items-center justify-between gap-3"><div><Label htmlFor="qq-client-fabric">Client's own fabric</Label><p className="text-xs text-stone-500">Fabric cost becomes zero.</p></div><Switch id="qq-client-fabric" checked={clientFabric} onCheckedChange={setClientFabric} /></div>
-          {clientFabric && <div className="grid gap-1"><Label htmlFor="qq-handling">Handling allowance (GHS)</Label><Input id="qq-handling" type="number" min={0} value={handlingCost} onChange={e => setHandlingCost(Math.max(0,Number(e.target.value)||0))} /></div>}
+          {clientFabric && <div className="grid gap-1"><Label htmlFor="qq-handling">Handling allowance  (studio currency)</Label><Input id="qq-handling" type="number" min={0} value={handlingCost} onChange={e => setHandlingCost(Math.max(0,Number(e.target.value)||0))} /></div>}
           <Separator />
           <div className="grid gap-2">
             <h3 className="font-semibold">Other production items</h3>
             <p className="text-xs text-stone-500">Choose a studio-saved item or starter suggestion, then enter its actual cost before adding.</p>
             <select aria-label="Choose production item" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e => { const x=itemPresets.find(x=>x.name===e.target.value); if(x){setItemName(x.name);setItemCost(x.unitCost);} }}><option value="">Choose a production item…</option><optgroup label="Your saved items">{itemPresets.filter(x=>!STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup><optgroup label="Starter suggestions">{itemPresets.filter(x=>STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.unitCost)}</option>)}</optgroup></select>
             <Label htmlFor="qq-item-name">Item name</Label><Input id="qq-item-name" placeholder="Zip, buttons, thread…" value={itemName} onChange={e=>setItemName(e.target.value)} />
-            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost (GHS)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2"><div><Label htmlFor="qq-item-qty">Quantity</Label><Input id="qq-item-qty" type="number" min={0} value={itemQty} onChange={e=>setItemQty(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-item-cost">Unit cost  (studio currency)</Label><Input id="qq-item-cost" type="number" min={0} value={itemCost} onChange={e=>setItemCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
             <div className="flex flex-wrap gap-2"><button type="button" onClick={addItem} className="rounded-md border p-2 font-medium">+ Add item</button>{canManagePresets && itemPresets.some(x=>x.name.toLowerCase()===itemName.trim().toLowerCase() && !STARTER_ITEMS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedItem} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
             {items.map(x=><div key={x.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm"><span>{x.name} × {x.quantity} · {formatCurrency(x.quantity*x.unitCost)}</span><button type="button" className="text-red-700 underline" onClick={()=>setItems(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
           </div>
@@ -428,7 +435,7 @@ export default function QuickQuote() {
             <p className="text-xs text-stone-500">Choose a studio-saved extra or starter suggestion, then set its price and cost. Only accepted extras affect the total and profit.</p>
             <select aria-label="Choose optional extra" className="w-full min-w-0 border rounded-md p-2" value="" onChange={e=>{const x=extraPresets.find(x=>x.name===e.target.value);if(x){setExtraName(x.name);setExtraPrice(x.price);setExtraCost(x.cost);}}}><option value="">Choose an optional extra…</option><optgroup label="Your saved extras">{extraPresets.filter(x=>!STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup><optgroup label="Starter suggestions">{extraPresets.filter(x=>STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())).map(x=><option key={x.name} value={x.name}>{x.name} · {formatCurrency(x.price)}</option>)}</optgroup></select>
             <Label htmlFor="qq-extra-name">Extra name</Label><Input id="qq-extra-name" placeholder="Laundry, lining, fitting…" value={extraName} onChange={e=>setExtraName(e.target.value)} />
-            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price (GHS)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost (GHS)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
+            <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-2"><div><Label htmlFor="qq-extra-price">Client price  (studio currency)</Label><Input id="qq-extra-price" type="number" min={0} value={extraPrice} onChange={e=>setExtraPrice(Math.max(0,Number(e.target.value)||0))} /></div><div><Label htmlFor="qq-extra-cost">Production cost  (studio currency)</Label><Input id="qq-extra-cost" type="number" min={0} value={extraCost} onChange={e=>setExtraCost(Math.max(0,Number(e.target.value)||0))} /></div></div>
             <div className="flex flex-wrap gap-2"><button type="button" onClick={addExtra} className="rounded-md border p-2 font-medium">+ Add extra</button>{canManagePresets && extraPresets.some(x=>x.name.toLowerCase()===extraName.trim().toLowerCase() && !STARTER_EXTRAS.some(y=>y.name.toLowerCase()===x.name.toLowerCase())) && <button type="button" onClick={removeSavedExtra} className="rounded-md border border-red-200 px-3 py-2 text-sm text-red-700">Remove saved suggestion</button>}</div>
             {extras.map(x=><div key={x.id} className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-sm"><label className="flex min-w-0 flex-wrap items-center gap-2 break-words"><input type="checkbox" checked={x.accepted} onChange={e=>setExtras(v=>v.map(y=>y.id===x.id?{...y,accepted:e.target.checked}:y))} />{x.name} · {formatCurrency(x.price)}</label><button type="button" className="text-red-700 underline" onClick={()=>setExtras(v=>v.filter(y=>y.id!==x.id))}>Remove</button></div>)}
           </div>
@@ -481,7 +488,7 @@ export default function QuickQuote() {
             <LineItem label="Allocated overhead" value={calc.overhead} />
             <LineItem label="TRUE COST" value={calc.trueCost} emphasized />
             <p className="text-xs text-stone-500">Labour is included in True Cost. Overhead follows studio settings.</p>
-            <LineItem label={`Settings mark-up (${calc.markup}%)`} value={calc.trueCost * calc.markup / 100} />
+            <LineItem label={`Settings mark-up (${calc.markup}%)`} value={(calc.trueCost - calc.extrasCost) * calc.markup / 100} />
             <Separator />
 
             {extras.filter(x => x.accepted).map(x => <LineItem key={x.id} label={"Accepted extra · " + x.name} value={x.price} />)}
@@ -497,10 +504,10 @@ export default function QuickQuote() {
 
             <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3">
               <div className="grid gap-1"><Label htmlFor="qq-wastage">Wastage %</Label><Input id="qq-wastage" type="number" min={0} value={wastagePct} onChange={e => setWastagePct(Math.max(0, Number(e.target.value) || 0))} /></div>
-              <div className="grid gap-1"><Label htmlFor="qq-other">Other costs (GHS)</Label><Input id="qq-other" type="number" min={0} value={otherCosts} onChange={e => setOtherCosts(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-other">Other costs  (studio currency)</Label><Input id="qq-other" type="number" min={0} value={otherCosts} onChange={e => setOtherCosts(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-markup">Mark-up %</Label><Input id="qq-markup" type="number" min={0} value={calc.markup} onChange={e => setMarkupOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-deposit">Deposit %</Label><Input id="qq-deposit" type="number" min={0} max={100} value={calc.depositPct} onChange={e => setDepositOverride(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
-              <div className="grid gap-1"><Label htmlFor="qq-final">Base final price (GHS, excluding extras)</Label><Input id="qq-final" type="number" min={0} value={calc.finalPrice - calc.extrasPrice} onChange={e => setFinalOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
+              <div className="grid gap-1"><Label htmlFor="qq-final">Base final price (studio currency, excluding extras)</Label><Input id="qq-final" type="number" min={0} value={calc.finalPrice - calc.extrasPrice} onChange={e => setFinalOverride(Math.max(0, Number(e.target.value) || 0))} /></div>
               <div className="grid gap-1"><Label htmlFor="qq-discount">Discount %</Label><Input id="qq-discount" type="number" min={0} max={100} value={discountPct} onChange={e => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))} /></div>
             </div>
             {calc.discount > 0 && <LineItem label="Discount" value={-calc.discount} />}
@@ -536,7 +543,10 @@ export default function QuickQuote() {
 
             {calc.estMargin < 0 && <p role="alert" className="rounded-md bg-red-50 p-3 text-sm font-semibold text-red-800">Warning: final price is below True Cost. This quote makes a loss.</p>}
             {calc.estMargin >= 0 && calc.estMarginPct < 10 && <p role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900">Low profit margin: consider reviewing the selling price.</p>}
+            <LineItem label="Balance after deposit" value={Math.max(0,calc.total-calc.suggestedDeposit)} emphasized />
+            {(pricingLoading || pricingError) && <p role="status" className="text-sm text-amber-800">{pricingLoading ? "Loading studio pricing…" : "Studio pricing could not load."} {pricingError && <button type="button" className="underline" onClick={()=>void retryPricing()}>Retry</button>}</p>}
             <PremiumButton
+              disabled={!canQuote || saveQuote.isPending}
               onClick={handleConvert}
               size="md"
               className="w-full mt-1"
@@ -563,11 +573,12 @@ export default function QuickQuote() {
                 onChange={(e) => setValidDays(e.target.value)}
                 className="h-10 w-full rounded-md border border-input bg-white px-3 text-sm"
               >
+                {!["7","14","30"].includes(validDays) && <option value={validDays}>{validDays} days (studio default)</option>}
                 <option value="7">7 days</option>
                 <option value="14">14 days</option>
                 <option value="30">30 days</option>
               </select>
-              <PremiumButton variant="secondary" size="md" className="w-full" onClick={() => saveQuote.mutate()} disabled={saveQuote.isPending || calc.total <= 0}>
+              <PremiumButton variant="secondary" size="md" className="w-full" onClick={() => saveQuote.mutate()} disabled={saveQuote.isPending || !canQuote}>
                 <Save className="w-4 h-4" />
                 {saveQuote.isPending ? "Saving…" : "Save quote"}
               </PremiumButton>

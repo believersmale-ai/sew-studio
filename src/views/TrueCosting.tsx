@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Calculator, Plus, Settings as SettingsIcon, Lock, Percent, Coins, TrendingUp } from "lucide-react";
 
@@ -37,22 +37,24 @@ export default function TrueCosting() {
   const { canSeeBusiness, isOwner } = useRole();
   const canSee = canSeeBusiness();
 
-  const { data: orders, isLoading } = useQuery<Order[]>({
+  const { data: orders, isLoading, isError, refetch: retryOrders } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: () => apiGet<Order[]>("/api/orders"),
     enabled: canSee,
   });
-  const { data: settings } = useQuery<Settings>({
+  const { data: settings, isLoading: settingsLoading, isError: settingsError, refetch: retrySettings } = useQuery<Settings>({
     queryKey: ["settings"],
     queryFn: () => apiGet<Settings>("/api/settings"),
     enabled: canSee,
   });
   const currency = settings?.currency || "GHS";
 
-  const {data:accuracy} = useQuery<{total:number;accurate:number;accuracyPercent:number|null;trend:{month:string;total:number;accurate:number;accuracyPercent:number;profit:number}[];rows:{orderId:string;garment:string;date:string;estimatedCost:number;actualCost:number;estimatedProfit:number;actualProfit:number}[]}>({
+  const {data:accuracy, isError: accuracyError, isLoading: accuracyLoading, refetch: retryAccuracy} = useQuery<{total:number;accurate:number;accuracyPercent:number|null;trend:{month:string;total:number;accurate:number;accuracyPercent:number;profit:number}[];rows:{orderId:string;garment:string;date:string;estimatedCost:number;actualCost:number;estimatedProfit:number;actualProfit:number}[]}>({
     queryKey:["costing-accuracy"],queryFn:()=>apiGet("/api/costing/accuracy"),enabled:canSee && isOwner(),
   });
 
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
   const rows = useMemo(() => {
     return (orders || [])
       .filter((o) => (Number(o.fabricCost) || 0) + (Number(o.labourCost) || 0) + (Number(o.otherCost) || 0) > 0)
@@ -95,6 +97,9 @@ export default function TrueCosting() {
     );
   }
 
+  if (isLoading || settingsLoading) return <div className="p-6 text-sm text-stone-500" role="status">Loading costing data…</div>;
+  if (isError || settingsError) return <div className="p-6" role="alert">Could not load costing data. <button className="underline text-[#800020]" onClick={()=>{void retryOrders();void retrySettings();}}>Try again</button></div>;
+  const shown = rows.filter(r => (filter === "all" || (filter === "loss" ? r.profit < 0 : filter === "profit" ? r.profit > 0 : r.profit === 0)) && `${r.order.garmentDesign} ${r.order.customer?.name ?? ""}`.toLowerCase().includes(search.trim().toLowerCase()));
   const rate = overheadRecoveryRatePercent(settings);
   const markup = defaultMarkupPercent(settings);
   const belowCostCount = rows.filter((r) => r.belowCost).length;
@@ -152,6 +157,8 @@ export default function TrueCosting() {
       </div>
       {isOwner() && <SectionCard title="Completed orders · actual profit and quote accuracy">
         <div className="p-5 space-y-4">
+          {accuracyError && <p role="alert" className="text-sm text-red-700">Could not load accuracy data. <button className="underline" onClick={()=>void retryAccuracy()}>Retry</button></p>}
+          {accuracyLoading && <p role="status" className="text-sm text-stone-500">Loading accuracy…</p>}
           <div className="flex flex-wrap items-baseline gap-3"><strong className="text-2xl text-[#800020]">{accuracy?.accuracyPercent==null?"—":`${accuracy.accuracyPercent}%`}</strong><span className="text-sm text-stone-600">of reconciled orders were within 10% of their original estimated cost ({accuracy?.accurate??0} of {accuracy?.total??0})</span></div>
           {!!accuracy?.trend.length && <div className="space-y-2">
             <h3 className="text-sm font-semibold text-[#35121d]">Quote accuracy over time</h3>
@@ -161,10 +168,12 @@ export default function TrueCosting() {
               <p className="mt-1 text-xs text-stone-600">Final profit: {formatCurrency(month.profit,currency)}</p>
             </div>)}</div>
           </div>}
-          {accuracy?.rows.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left"><th className="py-2 pr-4">Completed garment</th><th className="py-2 pr-4 text-right">Estimated profit</th><th className="py-2 pr-4 text-right">Final profit / loss</th></tr></thead><tbody>{accuracy.rows.map(x=><tr key={x.orderId} className="border-t border-[#EEDFE3] cursor-pointer" onClick={()=>go("order",{id:x.orderId})}><td className="py-3 pr-4">{x.garment}<span className="block text-xs text-stone-500">{formatDate(x.date)}</span></td><td className="py-3 pr-4 text-right tabular-nums">{formatCurrency(x.estimatedProfit,currency)}</td><td className={cn("py-3 pr-4 text-right tabular-nums font-semibold",x.actualProfit<0?"text-red-700":"text-emerald-700")}>{formatCurrency(x.actualProfit,currency)}</td></tr>)}</tbody></table></div>:<p className="text-sm text-stone-500">No completed orders with confirmed actual costs yet. Reconcile a completed order to see final profit and quote accuracy here.</p>}
+          {accuracy?.rows.length ? <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="text-left"><th className="py-2 pr-4">Completed garment</th><th className="py-2 pr-4 text-right">Estimated profit</th><th className="py-2 pr-4 text-right">Final profit / loss</th></tr></thead><tbody>{accuracy.rows.map(x=><tr key={x.orderId} className="border-t border-[#EEDFE3] cursor-pointer" onClick={()=>go("order",{id:x.orderId})}><td className="py-3 pr-4">{x.garment}<span className="block text-xs text-stone-500">{formatDate(x.date)}</span></td><td className="py-3 pr-4 text-right tabular-nums">{formatCurrency(x.estimatedProfit,currency)}</td><td className={cn("py-3 pr-4 text-right tabular-nums font-semibold",x.actualProfit<0?"text-red-700":"text-emerald-700")}>{formatCurrency(x.actualProfit,currency)}</td></tr>)}</tbody></table></div>:<p className="text-sm text-stone-500">{accuracyError || accuracyLoading ? "" : "No completed orders with confirmed actual costs yet. Reconcile a completed order to see final profit and quote accuracy here."}</p>}
         </div>
       </SectionCard>}
       <SectionCard title="Orders: cost vs price and estimated profit">
+        <div className="grid gap-2 p-3 sm:grid-cols-2"><input aria-label="Search costed orders" placeholder="Search garment or customer" value={search} onChange={e=>setSearch(e.target.value)} className="min-w-0 rounded-lg border p-2 text-sm"/><select aria-label="Profitability filter" value={filter} onChange={e=>setFilter(e.target.value)} className="rounded-lg border p-2 text-sm"><option value="all">All orders</option><option value="profit">Profitable</option><option value="loss">Loss-making</option><option value="even">Break-even</option></select></div>
+        {rows.length > 0 && shown.length === 0 && <p className="p-3 text-sm text-stone-500">No orders match these filters.</p>}
         {isLoading ? (
           <p className="p-6 text-sm text-stone-400">Loading…</p>
         ) : rows.length === 0 ? (
@@ -193,7 +202,7 @@ export default function TrueCosting() {
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r) => (
+                {shown.map((r) => (
                   <tr
                     key={r.order.id}
                     onClick={() => go("order", { id: r.order.id })}

@@ -48,7 +48,13 @@ export async function POST(req: Request) {
     const ctx = await getTenant();
     if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await req.json();
+    const body = await req.json().catch(()=>null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return Response.json({error:"Invalid request body"},{status:400});
+    if (ctx.role === "trainee") return Response.json({error:"Trainees cannot modify tasks"},{status:403});
+    if ("title" in body && (typeof body.title !== "string" || !body.title.trim())) return Response.json({error:"Task title is required"},{status:400});
+    if ("status" in body && !["To Do","In Progress","Done"].includes(body.status)) return Response.json({error:"Invalid task status"},{status:400});
+    if (body.dueDate && !Number.isFinite(new Date(body.dueDate).getTime())) return Response.json({error:"Invalid due date"},{status:400});
+    if (!body.title) return Response.json({error:"Task title is required"},{status:400});
     const data: Database["public"]["Tables"]["tasks"]["Insert"] = {
       shop_id: ctx.shopId,
       title: String(body.title ?? "").trim(),
@@ -77,8 +83,9 @@ export async function POST(req: Request) {
         const allowed =
           ctx.role !== "trainer" ||
           (staff.role === "trainee" && staff.mentor_id === ctx.userId);
-        if (allowed) data.staff_id = String(body.staffId);
-      }
+        if (!allowed) return Response.json({error:"Assignment not permitted"},{status:403});
+        data.staff_id = String(body.staffId);
+      } else return Response.json({error:"Staff member not found"},{status:404});
     }
     if (body.dueDate) data.due_date = new Date(body.dueDate).toISOString();
     if (body.notes) data.notes = String(body.notes);

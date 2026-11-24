@@ -52,6 +52,7 @@ export async function POST(req: Request) {
     if (!EMAIL_RE.test(emailNorm)) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
     }
+    if (password.length > 1024) return NextResponse.json({error:"Password is too long."},{status:400});
     if (password.length < 8) {
       return NextResponse.json({ error: "Password must be at least 8 characters." }, { status: 400 });
     }
@@ -65,7 +66,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: emailConflict.message }, { status: 409 });
     }
 
-    const ownerGender = gender || "Female";
+    if (!["Male","Female"].includes(gender)) return NextResponse.json({error:"Invalid gender selection."},{status:400});
+    const ownerGender = gender;
     const ownerLabel = ownerGender === "Male" ? "Master" : "Madam";
     const normalizedPhone = body.phone ? String(body.phone).trim().slice(0, 40) : null;
 

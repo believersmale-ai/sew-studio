@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Download, Plus, Trash2, Truck } from "lucide-react";
 import { toast } from "sonner";
-import { api, apiGet, apiPatch, apiPost } from "@/lib/api";
+import { api, apiGet, apiPatch, apiPost, apiErrorMessage } from "@/lib/api";
 import { useRole } from "@/stores/role";
 import { formatCurrency, formatDate, todayISO } from "@/lib/format";
 import type { Settings } from "@/lib/types";
@@ -24,7 +24,7 @@ export default function AccraRuns() {
   const qc = useQueryClient();
   const { role } = useRole();
   const canEdit = role !== "trainee";
-  const { data: trips, isLoading } = useQuery<Trip[]>({ queryKey: ["accra-runs"], queryFn: () => apiGet<Trip[]>("/api/accra-runs") });
+  const { data: trips, isLoading, isError, refetch } = useQuery<Trip[]>({ queryKey: ["accra-runs"], queryFn: () => apiGet<Trip[]>("/api/accra-runs") });
   const { data: settings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const currency = settings?.currency || "GHS";
   const {data: suppliers = []} = useQuery<Supplier[]>({queryKey:["market-run-suppliers"],queryFn:()=>apiGet<Supplier[]>("/api/market-run-suppliers")});
@@ -36,11 +36,11 @@ export default function AccraRuns() {
   const [editName,setEditName] = useState("");
   const [editPhone,setEditPhone] = useState("");
   const [editLocation,setEditLocation] = useState("");
-  const saveSupplier = useMutation({mutationFn:()=>apiPatch(`/api/market-run-suppliers/${editingSupplier}`,{name:editName,phone:editPhone,location:editLocation}),onSuccess:()=>{setEditingSupplier(null);toast.success("Supplier updated");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
+  const saveSupplier = useMutation({mutationFn:()=>apiPatch(`/api/market-run-suppliers/${editingSupplier}`,{name:editName,phone:editPhone,location:editLocation}),onSuccess:()=>{setEditingSupplier(null);toast.success("Supplier updated");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(apiErrorMessage(e,e.message))});
   const supplierHistory = (name:string) => (trips??[]).flatMap(t=>t.items.filter(i=>i.supplierName?.trim().toLocaleLowerCase()===name.trim().toLocaleLowerCase()).map(i=>({date:t.tripDate,description:i.description,amount:i.actualCost,planned:i.plannedCost}))).sort((a,b)=>b.date.localeCompare(a.date));
-  const addSupplier = useMutation({mutationFn:()=>apiPost("/api/market-run-suppliers",{name:supplierName,phone:supplierPhone,location:supplierLocation}),onSuccess:()=>{setSupplierName("");setSupplierPhone("");setSupplierLocation("");toast.success("Supplier saved");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(e.message)});
+  const addSupplier = useMutation({mutationFn:()=>apiPost("/api/market-run-suppliers",{name:supplierName,phone:supplierPhone,location:supplierLocation}),onSuccess:()=>{setSupplierName("");setSupplierPhone("");setSupplierLocation("");toast.success("Supplier saved");qc.invalidateQueries({queryKey:["market-run-suppliers"]});},onError:(e:Error)=>toast.error(apiErrorMessage(e,e.message))});
   const refresh = () => qc.invalidateQueries({ queryKey: ["accra-runs"] });
-  const onError = (e: Error) => toast.error(e.message);
+  const onError = (e: Error) => toast.error(apiErrorMessage(e,e.message));
 
   const [date, setDate] = useState(todayISO());
   const [filter, setFilter] = useState<"All" | "Planned" | "Logged">("All");
@@ -48,7 +48,7 @@ export default function AccraRuns() {
   const plannedTotal = visibleTrips.reduce((sum,t) => sum + t.items.reduce((n,i)=>n+i.plannedCost,0),0);
   const spentTotal = visibleTrips.reduce((sum,t) => sum + t.items.reduce((n,i)=>n+i.actualCost,0),0);
   const exportCsv = () => {
-    const escape = (v: string | number) => '"' + String(v).replaceAll('"','""') + '"';
+    const escape = (v: string | number) => { const raw = String(v); const safe = typeof v === "string" && /^[\s]*[=+@-]/.test(raw) ? "\u0027" + raw : raw; return '"' + safe.replaceAll('"','""') + '"'; };
     const rows = [["Trip date","Status","Notes","Item","Supplier","Receipt reference","Obtained","Planned cost","Actual cost"],...visibleTrips.flatMap(t => t.items.length ? t.items.map(i => [t.tripDate,t.status,t.notes ?? "",i.description,i.supplierName ?? "",i.receiptReference ?? "",i.obtained ? "Yes" : "No",i.plannedCost,i.actualCost]) : [[t.tripDate,t.status,t.notes ?? "","","","","",0,0]])];
     const csv = "\uFEFF" + rows.map(row => row.map(escape).join(",")).join("\r\n");
     const url = URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
@@ -81,12 +81,12 @@ export default function AccraRuns() {
       {canEdit && (
         <div className="mb-5 flex flex-wrap items-end gap-3">
           <label className="text-xs font-medium text-stone-600">Trip date<input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} mt-1 block`} /></label>
-          <PremiumButton onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan a trip</PremiumButton>
+          <PremiumButton onClick={() => addTrip.mutate()} disabled={addTrip.isPending || !date}><Plus className="size-4" /> Plan a trip</PremiumButton>
         </div>
       )}
       <SectionCard title="Supplier directory" action={<PremiumButton size="sm" variant="outline" onClick={()=>setShowSuppliers(v=>!v)}>{showSuppliers?"Hide suppliers":"Manage suppliers"}</PremiumButton>}>
         {showSuppliers && <div className="p-4 space-y-3">
-          {canEdit && <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();if(supplierName.trim())addSupplier.mutate();}}>
+          {canEdit && <form className="flex flex-wrap gap-2" onSubmit={e=>{e.preventDefault();if(supplierName.trim() && !addSupplier.isPending)addSupplier.mutate();}}>
             <input required maxLength={150} aria-label="Supplier name" placeholder="Supplier name" value={supplierName} onChange={e=>setSupplierName(e.target.value)} className={`${field} flex-1 min-w-36`}/>
             <input maxLength={80} aria-label="Supplier phone" placeholder="Phone" value={supplierPhone} onChange={e=>setSupplierPhone(e.target.value)} className={`${field} w-36`}/>
             <input maxLength={200} aria-label="Supplier location" placeholder="Market / location" value={supplierLocation} onChange={e=>setSupplierLocation(e.target.value)} className={`${field} w-40`}/>
@@ -122,7 +122,7 @@ export default function AccraRuns() {
           <div className="flex flex-wrap gap-2"><PremiumButton variant="outline" size="sm" onClick={printReport}><Download className="size-4"/> Print / PDF</PremiumButton><PremiumButton variant="outline" size="sm" onClick={exportCsv}><Download className="size-4"/> Export CSV</PremiumButton></div>
         </div>
       </div>}
-      {isLoading ? <p className="text-sm text-stone-400">Loading…</p> : !trips?.length ? (
+      {isLoading ? <p className="text-sm text-stone-400">Loading…</p> : isError ? <SectionCard><p role="alert" className="p-3 text-sm text-red-700">Could not load market runs. <button type="button" className="underline font-semibold" onClick={()=>void refetch()}>Try again</button></p></SectionCard> : !trips?.length ? (
         <SectionCard><EmptyState icon={Truck} title="No trips yet" description="Plan your next trip to the market, then list what you need to buy." action={canEdit ? <PremiumButton size="sm" onClick={() => addTrip.mutate()} disabled={addTrip.isPending}><Plus className="size-4" /> Plan your first trip</PremiumButton> : undefined} /></SectionCard>
       ) : visibleTrips.length === 0 ? <SectionCard><p className="p-4 text-sm text-stone-500">No {filter.toLowerCase()} trips match this filter.</p></SectionCard> : (
         <div className="space-y-5">{visibleTrips.map((t) => <TripCard key={t.id} trip={t} currency={currency} canEdit={canEdit} suppliers={suppliers} onChange={refresh} onError={onError} />)}</div>

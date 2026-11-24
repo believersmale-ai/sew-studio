@@ -1,3 +1,4 @@
+import { adminHasArea } from "@/lib/admin-access";
 import { NextResponse } from "next/server";
 import { getSystemAdminSession } from "@/lib/db/session";
 import { createAdminClient } from "@/lib/db/adminClient";
@@ -11,6 +12,7 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!adminHasArea(ctx, "studios")) return NextResponse.json({error:"Forbidden"},{status:403});
   const admin = createAdminClient();
 
   const { data: shops, error } = await admin
@@ -18,7 +20,7 @@ export async function GET() {
     .select("id, name, slug, plan, currency, suspended_at, suspended_reason, created_at")
     .order("created_at", { ascending: false });
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: "Could not load studios." }, { status: 500 });
   }
 
   // Per-shop counts, fetched in parallel. Fine at this scale (tens to low
