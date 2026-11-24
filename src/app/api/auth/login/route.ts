@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getTenant } from "@/lib/db/session";
 import { getPool } from "@/lib/db/pool";
 import { createRequestClient } from "@/lib/db/requestClient";
 
@@ -16,8 +17,10 @@ async function needsPasswordChange(userId: string): Promise<boolean> {
 
 export async function POST(req: Request) {
   try {
-    const { email, password, rememberMe } = await req.json();
-    if (!email || !password) {
+    const body = await req.json().catch(()=>null);
+    if (!body || typeof body !== "object" || Array.isArray(body)) return NextResponse.json({error:"Invalid login request."},{status:400});
+    const { email, password, rememberMe } = body;
+    if (typeof email !== "string" || !email.trim() || email.length > 254 || typeof password !== "string" || !password || password.length > 1024) {
       return NextResponse.json(
         { error: "Email and password are required." },
         { status: 400 }
@@ -68,6 +71,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const tenant = await getTenant();
+    if (!tenant || tenant.userId !== data.user.id || tenant.shopId !== profile.shop_id) {
+      await db.auth.signOut();
+      return NextResponse.json({error:"Studio access is unavailable. Contact your studio administrator."},{status:403});
+    }
     const mustChangePassword = await needsPasswordChange(data.user.id);
     return NextResponse.json({
       user: {
