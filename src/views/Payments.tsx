@@ -44,7 +44,7 @@ export default function Payments() {
   }, [orders]);
 
   const matches = (o: Order) => `${o.customer?.name ?? ""} ${o.garmentDesign ?? ""}`.toLowerCase().includes(search.trim().toLowerCase());
-  const methods = Array.from(new Set(payments.map(p=>p.method).filter(Boolean)));
+  const methods = Array.from(new Set(payments.map(p=>p.method).filter((m): m is string => typeof m === "string" && m.trim().length > 0)));
   const filtered = payments.filter(p=> { const d=new Date(p.date), now=new Date(); return matches(p.order) && (method==="all" || p.method===method) && (period==="all" || (d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear())); });
   const balances = owing.filter(r=>matches(r.order));
   const exportPayments = () => {
