@@ -100,6 +100,8 @@ function orderCostTotal(order: Order, settings?: Settings | null) {
   return orderTrueCost(order, settings);
 }
 
+function sameDay(d: string | Date | null | undefined, ref: Date) { return !!d && new Date(d).toDateString()===ref.toDateString(); }
+
 function sameMonth(d: string | Date | null | undefined, ref: Date) {
   if (!d) return false;
   const x = new Date(d);
@@ -203,7 +205,7 @@ function MainDashboard() {
   const [insights, setInsights] = useState<string[] | null>(null);
   const [insightsLoading, setInsightsLoading] = useState(false);
 
-  const { data, isLoading, isError } = useQuery<DashboardData>({
+  const { data, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useQuery<DashboardData>({
     queryKey: ["dashboard"],
     queryFn: () => apiGet<DashboardData>("/api/dashboard"),
     retry: 1,
@@ -226,9 +228,6 @@ function MainDashboard() {
       .reduce((s, p) => s + (Number(p.amount) || 0), 0);
 
     const outstanding = orders
-      .filter(
-        (o) => o.status !== "Completed" && o.status !== "Collected/Delivered"
-      )
       .reduce((s, o) => {
         const paid = orderPaidTotal(o.id, payments);
         return s + Math.max(0, (Number(o.sellingPrice) || 0) - paid);
@@ -246,8 +245,8 @@ function MainDashboard() {
       count: orders.filter((o) => o.status === s).length,
     }));
 
-    const upcomingFittings = fittings
-      .filter((f) => f.status === "Scheduled")
+    const scheduledFittings = fittings.filter(f=>f.status==="Scheduled" && !isOverdue(f.date));
+    const upcomingFittings = scheduledFittings
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
       .slice(0, 5);
 
@@ -256,11 +255,12 @@ function MainDashboard() {
     );
     const openTasks = tasks.filter((t) => t.status !== "Done");
     const readyOrders = orders.filter((o) => o.status === "Ready");
+    const overdueOrders=orders.filter(o=>o.status!=="Completed"&&o.status!=="Collected/Delivered"&&isOverdue(o.deliveryDate));
     const dueSoon = orders.filter(
       (o) =>
         o.status !== "Completed" &&
         o.status !== "Collected/Delivered" &&
-        isWithinDays(o.deliveryDate, 7)
+        !!o.deliveryDate && !isOverdue(o.deliveryDate) && (isWithinDays(o.deliveryDate, 7) || sameDay(o.deliveryDate,now))
     );
 
     const staffWorkload = (users || []).map((u) => {
@@ -287,7 +287,7 @@ function MainDashboard() {
         : 0;
 
     const healthStatus =
-      outstanding > outstandingAlertThreshold || overdueTasks.length > 3
+      outstanding > outstandingAlertThreshold || overdueTasks.length > 3 || overdueOrders.length > 0
         ? "At Risk"
         : outstanding > outstandingAlertThreshold * 0.4 || overdueTasks.length > 0
         ? "Needs Attention"
@@ -327,7 +327,8 @@ function MainDashboard() {
 
     /* ----- Needs Attention items ----- */
     const attentionItems: string[] = [];
-    dueSoon.slice(0, 3).forEach((o) => {
+    if(overdueOrders.length) attentionItems.push(`${overdueOrders.length} overdue deliveries — review production deadlines.`);
+    dueSoon.sort((a,b)=>new Date(a.deliveryDate!).getTime()-new Date(b.deliveryDate!).getTime()).slice(0, 3).forEach((o) => {
       attentionItems.push(
         `“${(o.garmentDesign || "Untitled garment").slice(0, 36)}” is due ${shortDate(
           o.deliveryDate
@@ -364,7 +365,7 @@ function MainDashboard() {
       attentionItems.unshift(
         `Outstanding balance is ${formatCurrency(outstanding)} — above your ${formatCurrency(
           outstandingAlertThreshold
-        )} alert threshold. Chase payments on open orders.`
+        )} alert threshold. Review unpaid balances.`
       );
     }
     const overCapacityStaff = staffWorkload.filter((w) => w.overCapacity);
@@ -407,13 +408,15 @@ function MainDashboard() {
       attentionItems: attentionItems.slice(0, 6),
       orders,
       customers,
-      upcomingFittingsCount: upcomingFittings.length,
+      upcomingFittingsCount: scheduledFittings.length,
+      overdueOrdersCount: overdueOrders.length,
+      dueSoonCount: dueSoon.length,
     };
   }, [data]);
 
   /* ----- AI Trend Suggestions ----- */
   const generateInsights = async () => {
-    if (!m) return;
+    if (!m || !owner || insightsLoading) return;
     setInsightsLoading(true);
     try {
       const statusBreakdown: Record<string, number> = {};
@@ -455,7 +458,7 @@ function MainDashboard() {
   };
 
   /* ----- loading + error guards ----- */
-  if (isLoading || !m) {
+  if (isLoading || (!m && !isError)) {
     return (
       <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
         <div className="mb-8">
@@ -463,7 +466,7 @@ function MainDashboard() {
           <div className="h-9 w-72 shimmer rounded mb-3" />
           <div className="h-3 w-80 shimmer rounded" />
         </div>
-        {!staff && (
+        {owner && (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             {Array.from({ length: 4 }).map((_, i) => (
               <SkeletonCard key={i} />
@@ -481,7 +484,7 @@ function MainDashboard() {
     );
   }
 
-  if (isError) {
+  if (isError || !m) {
     return (
       <div className="px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5 max-w-[1400px] mx-auto w-full">
         <SectionCard title="Could not load dashboard">
@@ -493,9 +496,9 @@ function MainDashboard() {
               <PremiumButton
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.reload()}
+                onClick={() => void refetch()}
               >
-                Reload
+                Retry
               </PremiumButton>
             }
           />
@@ -650,10 +653,10 @@ function MainDashboard() {
       )}
 
       {/* ---------- Money row (Madam only) ---------- */}
-      {!staff && (
+      {owner && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 animate-fade-in-up">
           <PremiumMetric
-            label="Sales This Month"
+            label="Booked Sales This Month"
             tone="violet"
             accent
             icon={TrendingUp}
@@ -682,20 +685,21 @@ function MainDashboard() {
             sub={
               m.outstandingOverThreshold
                 ? `Above your ${formatCurrency(m.outstandingAlertThreshold)} alert threshold`
-                : "From open orders"
+                : "Across all orders"
             }
             value={<AnimatedNumber value={m.outstanding} format="currency" />}
           />
           <PremiumMetric
-            label="Estimated Profit"
+            label="Estimated Order Profit"
             tone="blue"
             icon={Sparkles}
-            sub="Sales − fabric − labour − overhead"
+            sub="All-time order value − estimated order costs"
             value={<AnimatedNumber value={m.profit} format="currency" />}
           />
         </div>
       )}
 
+      {owner && <SectionCard title="Management priorities" className="mb-4"><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{[{label:"Overdue deliveries",count:m.overdueOrdersCount,key:"orders" as const},{label:"Due within 7 days",count:m.dueSoonCount,key:"orders" as const},{label:"Upcoming fittings",count:m.upcomingFittingsCount,key:"fittings" as const},{label:"Overdue tasks",count:m.overdueTaskCount,key:"tasks" as const}].map(item=><button key={item.label} disabled={enabledMenus?.[item.key]===false} onClick={()=>go(item.key)} className="min-w-0 rounded-lg border border-[#EEDFE3] p-3 text-left disabled:opacity-50"><span className="block text-xs text-stone-500">{item.label}</span><span className="text-2xl font-semibold text-[#800020]">{item.count}</span></button>)}</div><div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500"><span>Updated {new Date(dataUpdatedAt).toLocaleTimeString()}</span><button disabled={isFetching} onClick={()=>void refetch()} className="underline text-[#800020]">{isFetching?"Refreshing…":"Refresh dashboard"}</button></div></SectionCard>}
       {/* ---------- Work + People grid ---------- */}
       <div className="grid grid-cols-1 xl:grid-cols-3 xl:items-start gap-4 mb-4">
         {/* Left 2/3 column — stack of section cards */}
@@ -929,7 +933,7 @@ function MainDashboard() {
       </div>
 
       {/* ---------- Madam-only premium sections ---------- */}
-      {!staff && (
+      {owner && (
         <>
           {/* Income Trend */}
           <div className="mb-4">
