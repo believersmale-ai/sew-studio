@@ -3,7 +3,7 @@ import { getPool } from "@/lib/db/pool";
 import { paymentConfiguration, paystackRequest } from "@/lib/ready-to-wear-paystack";
 const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function POST(req:Request){
- const body=await req.json().catch(()=>({})),id=String(body.orderId??"");
+ const body=await req.json().catch(()=>({})),id=String(body?.orderId??"");
  if(!uuid.test(id))return Response.json({error:"Invalid order"},{status:400});
  if(!(await paymentConfiguration()).enabled)return Response.json({error:"Online payments are not enabled"},{status:503});
  const phone=String(body.phone??"").trim();
