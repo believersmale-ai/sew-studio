@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -148,9 +148,13 @@ export default function Settings() {
   const [alterationsPolicyText, setAlterationsPolicyText] = useState("");
   const [cancellationPolicyText, setCancellationPolicyText] = useState("");
 
-  // Prefill the form once settings load.
+  const hydrated = useRef<ShopSettings | null>(null);
+  const [baseline, setBaseline] = useState<Record<string, unknown> | null>(null);
+  const [formReady, setFormReady] = useState(false);
+  // Do not replace unsaved edits during background query refetches.
   useEffect(() => {
-    if (!data) return;
+    if (!data || hydrated.current) return;
+    hydrated.current = data;
     setStudioNameField(data.studioName ?? "");
     setOwnerGender(data.ownerGender === "Male" || data.ownerGender === "Master" ? "Male" : "Female");
     setCurrency(data.currency ?? "GHS");
@@ -187,6 +191,7 @@ export default function Settings() {
         fillTemplate(DEFAULT_POLICY_COPY.alterations, { days: data.alterationsWindowDays ?? 14 })
     );
     setCancellationPolicyText(data.cancellationPolicyText || DEFAULT_POLICY_COPY.cancellation);
+    setFormReady(true);
   }, [data]);
 
   const overheadItemsTotal = useMemo(
@@ -211,9 +216,8 @@ export default function Settings() {
     setOverheadItems((prev) => prev.filter((it) => it.id !== id));
   }
 
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      apiPatch<ShopSettings>("/api/settings", {
+  const draft = {
+
         studioName: studioName.trim(),
         ownerGender,
         currency,
@@ -242,8 +246,23 @@ export default function Settings() {
         depositPolicyText: depositPolicyText.trim(),
         alterationsPolicyText: alterationsPolicyText.trim(),
         cancellationPolicyText: cancellationPolicyText.trim(),
-      }),
-    onSuccess: (updated) => {
+  };
+  const draftKey = JSON.stringify(draft);
+  useEffect(() => {
+    if (formReady && !baseline) setBaseline(JSON.parse(draftKey));
+  }, [draftKey, formReady, baseline]);
+  const changed = Object.fromEntries(Object.entries(draft).filter(([key, value]) => baseline && JSON.stringify(value) !== JSON.stringify(baseline[key])));
+  const dirty = Object.keys(changed).length > 0;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const saveMutation = useMutation({
+    mutationFn: (patch: Record<string, unknown>) => apiPatch<ShopSettings>("/api/settings", patch),
+    onSuccess: (updated, patch) => {
+      setBaseline(previous => ({ ...previous, ...patch }));
       toast.success("Settings saved");
       queryClient.setQueryData(["settings"], updated);
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -291,14 +310,14 @@ export default function Settings() {
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const pricingError = canManageQuotePricing ? validateQuotePricing(garmentLabour, complexityLevels) : null;
+          const pricingError = canManageQuotePricing && ("quoteGarmentLabour" in changed || "quoteComplexityLevels" in changed) ? validateQuotePricing(garmentLabour, complexityLevels) : null;
           if (pricingError) { toast.error(pricingError); return; }
-          if (!saveMutation.isPending) saveMutation.mutate();
+          if (dirty && !saveMutation.isPending) saveMutation.mutate(changed);
         }}
         className="mt-6"
       >
         <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] items-start">
-          <nav aria-label="Settings sections" className="lg:sticky lg:top-6 flex lg:flex-col gap-1 overflow-x-auto min-w-0 max-w-full rounded-xl border border-[#EEDFE3] bg-white p-1.5 [scrollbar-width:thin]">
+          <nav aria-label="Settings sections" className="lg:sticky lg:top-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2 min-w-0 rounded-xl border border-[#EEDFE3] bg-white p-2">
             {SETTINGS_TABS.map((t) => (
               <button
                 key={t.key}
@@ -306,12 +325,12 @@ export default function Settings() {
                 onClick={() => setTab(t.key)}
                 aria-current={tab === t.key ? "page" : undefined}
                 className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs sm:text-sm whitespace-nowrap transition",
+                  "flex min-w-0 items-center gap-2 rounded-lg px-3 py-3 text-left text-xs sm:text-sm leading-tight transition",
                   tab === t.key ? "bg-[#800020] text-white font-medium" : "text-stone-600 hover:bg-stone-50"
                 )}
               >
                 <t.icon className="w-4 h-4 shrink-0" />
-                {t.label}
+                <span className="min-w-0 break-words">{t.label}</span>
               </button>
             ))}
           </nav>
@@ -824,8 +843,8 @@ export default function Settings() {
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3 rounded-xl border border-[#EEDFE3] bg-white px-3 py-2 sm:px-4 sm:py-3 sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-4 z-20 shadow-sm">
-          <p className="hidden sm:block text-xs text-stone-500">Changes across all sections are saved together.</p>
-          <PremiumButton type="submit" loading={saveMutation.isPending} size="lg">
+          <p role="status" className="mr-auto text-xs text-stone-500">{saveMutation.isPending ? "Saving…" : dirty ? "Unsaved changes" : "All changes saved"}</p>
+          <PremiumButton type="submit" disabled={!dirty || !formReady} loading={saveMutation.isPending} size="lg">
             <Save className="w-4 h-4" />
             Save settings
           </PremiumButton>
