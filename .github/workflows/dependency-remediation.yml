@@ -1,0 +1,37 @@
+name: Dependency remediation candidate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/dependency-remediation.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Resolve compatible security updates
+        run: npm audit fix --package-lock-only --ignore-scripts --audit-level=high || test -f package-lock.json
+      - name: Record candidate changes
+        run: |
+          mkdir -p remediation
+          git diff -- package.json package-lock.json > remediation/dependency.patch
+          cp package.json package-lock.json remediation/
+          npm audit --omit=dev --json > remediation/audit.json || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependency-remediation-candidate
+          path: remediation/
+      - run: npm ci
+      - run: npx tsc --noEmit --incremental false
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - run: npm audit --omit=dev --audit-level=high
