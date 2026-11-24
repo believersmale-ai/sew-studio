@@ -78,6 +78,10 @@ function sameMonth(dateStr?: string | null) {
   );
 }
 
+function awaitingDelivery(o: Order) { return !["Completed", "Collected/Delivered"].includes(o.status); }
+function late(o: Order) { return awaitingDelivery(o) && !!o.deliveryDate && isOverdue(o.deliveryDate); }
+function dueSoon(o: Order) { if (!awaitingDelivery(o) || !o.deliveryDate || late(o)) return false; const end = new Date(); end.setHours(23,59,59,999); end.setDate(end.getDate()+7); return new Date(o.deliveryDate).getTime() <= end.getTime(); }
+
 export default function Orders() {
   const { go } = useNav();
   const { user } = useAuth();
@@ -97,11 +101,13 @@ export default function Orders() {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [staffFilter, setStaffFilter] = useState<string>("all");
+  const [deadline, setDeadline] = useState("all");
+  const [sort, setSort] = useState("newest");
   const [search, setSearch] = useState("");
   const formMode = useFormMode();
   const [newOpen, setNewOpen] = useState(false);
 
-  const { data: orders, isLoading } = useQuery<Order[]>({
+  const { data: orders, isLoading, isError, refetch } = useQuery<Order[]>({
     queryKey: ["orders"],
     queryFn: () => apiGet<Order[]>("/api/orders"),
   });
@@ -138,12 +144,13 @@ export default function Orders() {
     const completedThisMonth = enriched.filter(
       (o) => o.status === "Completed" && sameMonth(o.orderDate)
     ).length;
-    return { total, active, ready, completedThisMonth };
+    return { total, active, ready, completedThisMonth, overdue: enriched.filter(late).length, upcoming: enriched.filter(dueSoon).length };
   }, [enriched]);
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return enriched
+      .filter(o => deadline === "all" || (deadline === "late" ? late(o) : deadline === "soon" ? dueSoon(o) : deadline === "priority" ? awaitingDelivery(o) && o.priority === "High" : awaitingDelivery(o) && !o.deliveryDate))
       .filter((o) => statusFilter === "all" || o.status === statusFilter)
       .filter(
         (o) => staffFilter === "all" || o.assignedStaffId === staffFilter
@@ -152,14 +159,16 @@ export default function Orders() {
         (o) =>
           !q ||
           o.garmentDesign?.toLowerCase().includes(q) ||
-          o.customer?.name?.toLowerCase().includes(q)
-      );
-  }, [enriched, statusFilter, staffFilter, search]);
+          o.customer?.name?.toLowerCase().includes(q) || invoiceNumber(o, invoicePrefix).toLowerCase().includes(q)
+      ).sort((a,b) => sort === "deadline" ? (a.deliveryDate ? new Date(a.deliveryDate).getTime() : Infinity) - (b.deliveryDate ? new Date(b.deliveryDate).getTime() : Infinity) : new Date(b.orderDate).getTime()-new Date(a.orderDate).getTime());
+  }, [enriched, statusFilter, staffFilter, search, deadline, sort, invoicePrefix]);
 
   const clearFilters = () => {
     setStatusFilter("all");
     setStaffFilter("all");
     setSearch("");
+    setDeadline("all");
+    setSort("newest");
   };
 
   return (
@@ -193,34 +202,36 @@ export default function Orders() {
       <div className="mb-6 grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <PremiumMetric
           label="Total Orders"
-          value={isLoading ? "—" : stats.total}
+          value={isLoading || isError ? "—" : stats.total}
           icon={ShoppingBag}
           accent
         />
         <PremiumMetric
           label="Active"
-          value={isLoading ? "—" : stats.active}
+          value={isLoading || isError ? "—" : stats.active}
           icon={Clock}
         />
         <PremiumMetric
           label="Ready for Collection"
-          value={isLoading ? "—" : stats.ready}
+          value={isLoading || isError ? "—" : stats.ready}
           icon={CheckCircle2}
         />
         <PremiumMetric
-          label="Completed This Month"
-          value={isLoading ? "—" : stats.completedThisMonth}
+          label="Completed · booked this month"
+          value={isLoading || isError ? "—" : stats.completedThisMonth}
           icon={CheckCircle2}
         />
       </div>
 
+      {!isLoading && !isError && <div className="mb-4 grid grid-cols-2 gap-3"><button type="button" onClick={()=>setDeadline(deadline==="late"?"all":"late")} aria-pressed={deadline==="late"} className="rounded-xl border border-[#EEDFE3] bg-white p-3 text-left"><span className="block text-xs text-stone-500">Overdue deliveries</span><strong className="text-xl text-[#800020]">{stats.overdue}</strong></button><button type="button" onClick={()=>setDeadline(deadline==="soon"?"all":"soon")} aria-pressed={deadline==="soon"} className="rounded-xl border border-[#EEDFE3] bg-white p-3 text-left"><span className="block text-xs text-stone-500">Due within 7 days</span><strong className="text-xl">{stats.upcoming}</strong></button></div>}
       {/* Filter bar */}
       <SectionCard className="mb-6" bodyClassName="py-3">
         <div className="flex flex-col md:flex-row md:items-center gap-3">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
             <Input
-              placeholder="Search by garment or customer…"
+              aria-label="Search orders"
+              placeholder="Search garment, customer or invoice…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="pl-9 rounded-md h-9 bg-white"
@@ -255,13 +266,15 @@ export default function Orders() {
             </Select>
           )}
         </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2"><select aria-label="Delivery filter" value={deadline} onChange={e=>setDeadline(e.target.value)} className="rounded-md border bg-white p-2 text-sm"><option value="all">All deadlines</option><option value="late">Overdue</option><option value="soon">Due within 7 days</option><option value="priority">High priority</option><option value="missing">No delivery date</option></select><select aria-label="Sort orders" value={sort} onChange={e=>setSort(e.target.value)} className="rounded-md border bg-white p-2 text-sm"><option value="newest">Newest first</option><option value="deadline">Earliest delivery first</option></select></div>
+        <button type="button" onClick={clearFilters} className="mt-2 text-xs underline text-[#800020]">Reset filters</button>
       </SectionCard>
 
       {/* Orders table */}
       <SectionCard bodyClassName="p-0">
         {isLoading ? (
           <SkeletonList rows={6} />
-        ) : rows.length === 0 ? (
+        ) : isError ? (<div role="alert" className="p-5 text-sm">Could not load orders. <button type="button" className="underline text-[#800020]" onClick={()=>void refetch()}>Try again</button></div>) : rows.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
             title={
@@ -321,7 +334,7 @@ export default function Orders() {
                 </thead>
                 <tbody className="divide-y divide-[#EEDFE3]/70">
                   {rows.map((o) => {
-                    const overdue = !!o.deliveryDate && isOverdue(o.deliveryDate);
+                    const overdue = late(o);
                     const balance = Math.max(0, (Number(o.sellingPrice) || 0) - o.paid);
                     const settled = o.sellingPrice > 0 && balance === 0;
                     return (
@@ -417,7 +430,7 @@ export default function Orders() {
             {/* Mobile: one card per invoice */}
             <ul className="md:hidden divide-y divide-[#EEDFE3]/70">
               {rows.map((o) => {
-                const overdue = !!o.deliveryDate && isOverdue(o.deliveryDate);
+                const overdue = late(o);
                 const balance = Math.max(0, (Number(o.sellingPrice) || 0) - o.paid);
                 const settled = o.sellingPrice > 0 && balance === 0;
                 return (
