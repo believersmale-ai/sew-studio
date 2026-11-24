@@ -648,7 +648,7 @@ function MainDashboard() {
                 <ArrowRight className={`ml-auto hidden size-4 shrink-0 transition group-hover:translate-x-0.5 sm:block ${primary ? "text-white/70" : "text-[#865A1D]"}`} />
               </button>
             ))}
-            <a href="/manage/ready-to-wear" className="group flex min-h-[88px] items-center gap-3 rounded-xl border border-[#EADDE0] bg-[#FCF8F5] p-3 text-[#3B0010] hover:border-[#C9972B] focus-visible:ring-2 focus-visible:ring-[#C9972B]"><span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#F5E8EB] text-[#800020]"><ShoppingBag className="size-5"/></span><span className="min-w-0"><span className="block text-sm font-semibold">Ready-to-Wear Shop</span><span className="block text-[11px] text-[#80666D]">Add garments, stock and orders</span></span></a>
+            <a href="/manage/ready-to-wear" onClick={e=>{e.preventDefault();go("ready-to-wear")}} className="group flex min-h-[88px] items-center gap-3 rounded-xl border border-[#EADDE0] bg-[#FCF8F5] p-3 text-[#3B0010] hover:border-[#C9972B] focus-visible:ring-2 focus-visible:ring-[#C9972B]"><span className="grid size-10 shrink-0 place-items-center rounded-lg bg-[#F5E8EB] text-[#800020]"><ShoppingBag className="size-5"/></span><span className="min-w-0"><span className="block text-sm font-semibold">Ready-to-Wear Shop</span><span className="block text-[11px] text-[#80666D]">Add garments, stock and orders</span></span></a>
           </div>
         </section>
       )}
