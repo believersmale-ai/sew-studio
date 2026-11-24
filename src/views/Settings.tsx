@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet, apiPatch, apiErrorMessage } from "@/lib/api";
 import { useRole } from "@/stores/role";
 import { formatCurrency, setStudioCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -205,8 +205,8 @@ export default function Settings() {
 
   function addOverheadItem() {
     const name = newItemName.trim();
-    const amount = Number(newItemAmount) || 0;
-    if (!name) return;
+    const amount = Number(newItemAmount);
+    if (!name || !newItemAmount.trim() || !Number.isFinite(amount) || amount < 0) { toast.error("Enter an overhead name and a valid non-negative amount."); return; }
     setOverheadItems((prev) => [...prev, { id: newItemId(), name, amount }]);
     setNewItemName("");
     setNewItemAmount("");
@@ -271,7 +271,7 @@ export default function Settings() {
       setStudioName(updated.studioName);
       setOwnerLabel(updated.ownerGender === "Male" ? "Master" : "Madam");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, err.message)),
   });
 
   if (isLoading) {
@@ -308,10 +308,16 @@ export default function Settings() {
       />
 
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
+          if (!studioName.trim()) { setTab("general"); toast.error("Enter your studio name."); return; }
+          if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) { setTab("general"); toast.error("Enter a valid contact email."); return; }
+          const limits: [number, number, number, string, SettingsTab][] = [[overheadAmount,0,100000000,"Overhead","costing"],[overheadRecoveryBasis,0,100000000,"Recovery basis","costing"],[selfPayout,0,100000000,"Owner payout","costing"],[defaultMarkupPercent,0,1000,"Markup","costing"],[outstandingBalanceAlertThreshold,0,100000000,"Balance alert","operations"],[typicalActiveOrdersPerStaff,1,10000,"Staff capacity","operations"],[depositPercent,0,100,"Deposit","policies"],[rushFeePercent,0,100,"Rush fee","policies"],[quoteValidDays,0,3650,"Quote validity","policies"],[fittingsIncluded,0,1000,"Fittings","policies"],[alterationsWindowDays,0,3650,"Alterations window","policies"]];
+          const invalid = limits.find(([value,min,max]) => !Number.isFinite(value) || value < min || value > max);
+          if (invalid) { setTab(invalid[4]); toast.error(`${invalid[3]} must be between ${invalid[1]} and ${invalid[2]}.`); return; }
           const pricingError = canManageQuotePricing && ("quoteGarmentLabour" in changed || "quoteComplexityLevels" in changed) ? validateQuotePricing(garmentLabour, complexityLevels) : null;
-          if (pricingError) { toast.error(pricingError); return; }
+          if (pricingError) { setTab("policies"); toast.error(pricingError); return; }
           if (dirty && !saveMutation.isPending) saveMutation.mutate(changed);
         }}
         className="mt-6"
@@ -324,6 +330,7 @@ export default function Settings() {
                 type="button"
                 onClick={() => setTab(t.key)}
                 aria-current={tab === t.key ? "page" : undefined}
+                aria-controls={`settings-${t.key}`}
                 className={cn(
                   "flex min-w-0 items-center gap-2 rounded-lg px-3 py-3 text-left text-xs sm:text-sm leading-tight transition",
                   tab === t.key ? "bg-[#800020] text-white font-medium" : "text-stone-600 hover:bg-stone-50"
@@ -336,10 +343,8 @@ export default function Settings() {
           </nav>
 
           <div className="min-w-0">
-          <div hidden={tab !== "plan"}>
-            <PlanSettingsPanel />
-          </div>
-          <div hidden={tab !== "general"} className="grid gap-5">
+          {tab === "plan" && <div id="settings-plan"><PlanSettingsPanel /></div>}
+          <div id="settings-general" className={tab === "general" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">General & business details</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Studio identity, contact information and the registration details printed on invoices.</p>
@@ -458,7 +463,7 @@ export default function Settings() {
           </div>
         </SectionCard>
           </div>
-          <div hidden={tab !== "costing"} className="grid gap-5">
+          <div id="settings-costing" className={tab === "costing" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Costing & overhead</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Monthly overheads and the overhead recovery rate applied to every order (as a percentage of non-labour cost).</p>
@@ -506,7 +511,7 @@ export default function Settings() {
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
                 placeholder="e.g. Electricity"
-                className="bg-white flex-1"
+                className="bg-white min-w-0 flex-1"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -639,7 +644,7 @@ export default function Settings() {
           </div>
         </SectionCard>
           </div>
-          <div hidden={tab !== "operations"} className="grid gap-5">
+          <div id="settings-operations" className={tab === "operations" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Operations & alerts</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Capacity and outstanding-balance alerts used by the dashboard.</p>
@@ -677,7 +682,7 @@ export default function Settings() {
           </div>
         </SectionCard>
           </div>
-          <div hidden={tab !== "policies"} className="grid gap-5">
+          <div id="settings-policies" className={tab === "policies" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Pricing policies & terms</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Deposits, rush fees, fittings and the client-facing terms shown on quotes and invoices.</p>
@@ -701,7 +706,7 @@ export default function Settings() {
             {complexityLevels.map((item,index)=>(
               <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(90px,130px)_auto] items-end gap-2">
                 <div className="min-w-0"><Label htmlFor={`complexity-name-${index}`}>Level</Label><Input id={`complexity-name-${index}`} maxLength={80} value={item.name} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,name:e.target.value}:x))}/></div>
-                <div className="min-w-0"><Label htmlFor={`complexity-multiplier-${index}`}>Multiplier ×</Label><Input id={`complexity-multiplier-${index}`} type="number" min={0.01} max={100} step={0.05} value={item.multiplier} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,multiplier:Number(e.target.value)}:x))}/></div>
+                <div className="min-w-0"><Label htmlFor={`complexity-multiplier-${index}`}>Multiplier ×</Label><Input id={`complexity-multiplier-${index}`} type="number" min={0.01} max={100} step={0.01} value={item.multiplier} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,multiplier:Number(e.target.value)}:x))}/></div>
                 <button type="button" aria-label={`Remove ${item.name}`} disabled={complexityLevels.length<=1} onClick={()=>setComplexityLevels(prev=>prev.filter((_,i)=>i!==index))} className="grid size-10 place-items-center rounded-lg border border-[#EEDFE3] text-stone-500 disabled:opacity-40"><X className="size-4"/></button>
               </div>
             ))}
