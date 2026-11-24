@@ -39,13 +39,14 @@ interface PlanData {
 
 export function PlanSettingsPanel() {
   const queryClient = useQueryClient();
-  const { data, isLoading, isError } = useQuery<PlanData>({
+  const { data, isLoading, isError, refetch } = useQuery<PlanData>({
     queryKey: ["plan"],
     queryFn: () => apiGet<PlanData>("/api/plan"),
   });
   const [requestingPlan, setRequestingPlan] = useState<PlanKey | null>(null);
 
   async function requestUpgrade(plan: PlanKey) {
+    if (requestingPlan !== null || data?.latestRequest?.status === "pending") return;
     setRequestingPlan(plan);
     try {
       await apiPost<PlanRequest>("/api/plan/upgrade-request", { plan });
@@ -64,7 +65,7 @@ export function PlanSettingsPanel() {
   if (isError || !data) {
     return (
       <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-        Couldn&apos;t load your plan. Refresh the page and try again.
+        Couldn&apos;t load your plan. <button type="button" onClick={() => void refetch()} className="font-semibold underline">Try again</button>.
       </div>
     );
   }
@@ -152,7 +153,7 @@ export function PlanSettingsPanel() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-3">
         {(Object.values(PLANS) as (typeof PLANS)[PlanKey][]).map((plan, index) => {
           const isCurrent = plan.key === data.plan;
           const requested = request?.status === "pending" && request.requestedPlan === plan.key;
@@ -160,7 +161,7 @@ export function PlanSettingsPanel() {
           return (
             <SectionCard
               key={plan.key}
-              className={`relative flex flex-col !p-5 ${
+              className={`relative flex min-w-0 flex-col !p-5 ${
                 isCurrent ? "border-[#8E3232]/40 ring-1 ring-[#8E3232]/15" : ""
               }`}
             >

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -36,7 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet, apiPatch, apiErrorMessage } from "@/lib/api";
 import { useRole } from "@/stores/role";
 import { formatCurrency, setStudioCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -148,9 +148,13 @@ export default function Settings() {
   const [alterationsPolicyText, setAlterationsPolicyText] = useState("");
   const [cancellationPolicyText, setCancellationPolicyText] = useState("");
 
-  // Prefill the form once settings load.
+  const hydrated = useRef<ShopSettings | null>(null);
+  const [baseline, setBaseline] = useState<Record<string, unknown> | null>(null);
+  const [formReady, setFormReady] = useState(false);
+  // Do not replace unsaved edits during background query refetches.
   useEffect(() => {
-    if (!data) return;
+    if (!data || hydrated.current) return;
+    hydrated.current = data;
     setStudioNameField(data.studioName ?? "");
     setOwnerGender(data.ownerGender === "Male" || data.ownerGender === "Master" ? "Male" : "Female");
     setCurrency(data.currency ?? "GHS");
@@ -187,6 +191,7 @@ export default function Settings() {
         fillTemplate(DEFAULT_POLICY_COPY.alterations, { days: data.alterationsWindowDays ?? 14 })
     );
     setCancellationPolicyText(data.cancellationPolicyText || DEFAULT_POLICY_COPY.cancellation);
+    setFormReady(true);
   }, [data]);
 
   const overheadItemsTotal = useMemo(
@@ -200,8 +205,8 @@ export default function Settings() {
 
   function addOverheadItem() {
     const name = newItemName.trim();
-    const amount = Number(newItemAmount) || 0;
-    if (!name) return;
+    const amount = Number(newItemAmount);
+    if (!name || !newItemAmount.trim() || !Number.isFinite(amount) || amount < 0) { toast.error("Enter an overhead name and a valid non-negative amount."); return; }
     setOverheadItems((prev) => [...prev, { id: newItemId(), name, amount }]);
     setNewItemName("");
     setNewItemAmount("");
@@ -211,9 +216,8 @@ export default function Settings() {
     setOverheadItems((prev) => prev.filter((it) => it.id !== id));
   }
 
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      apiPatch<ShopSettings>("/api/settings", {
+  const draft = {
+
         studioName: studioName.trim(),
         ownerGender,
         currency,
@@ -242,8 +246,23 @@ export default function Settings() {
         depositPolicyText: depositPolicyText.trim(),
         alterationsPolicyText: alterationsPolicyText.trim(),
         cancellationPolicyText: cancellationPolicyText.trim(),
-      }),
-    onSuccess: (updated) => {
+  };
+  const draftKey = JSON.stringify(draft);
+  useEffect(() => {
+    if (formReady && !baseline) setBaseline(JSON.parse(draftKey));
+  }, [draftKey, formReady, baseline]);
+  const changed = Object.fromEntries(Object.entries(draft).filter(([key, value]) => baseline && JSON.stringify(value) !== JSON.stringify(baseline[key])));
+  const dirty = Object.keys(changed).length > 0;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+  const saveMutation = useMutation({
+    mutationFn: (patch: Record<string, unknown>) => apiPatch<ShopSettings>("/api/settings", patch),
+    onSuccess: (updated, patch) => {
+      setBaseline(previous => ({ ...previous, ...patch }));
       toast.success("Settings saved");
       queryClient.setQueryData(["settings"], updated);
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -252,7 +271,7 @@ export default function Settings() {
       setStudioName(updated.studioName);
       setOwnerLabel(updated.ownerGender === "Male" ? "Master" : "Madam");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (err: Error) => toast.error(apiErrorMessage(err, err.message)),
   });
 
   if (isLoading) {
@@ -289,38 +308,43 @@ export default function Settings() {
       />
 
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault();
-          const pricingError = canManageQuotePricing ? validateQuotePricing(garmentLabour, complexityLevels) : null;
-          if (pricingError) { toast.error(pricingError); return; }
-          if (!saveMutation.isPending) saveMutation.mutate();
+          if (!studioName.trim()) { setTab("general"); toast.error("Enter your studio name."); return; }
+          if (contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail.trim())) { setTab("general"); toast.error("Enter a valid contact email."); return; }
+          const limits: [number, number, number, string, SettingsTab][] = [[overheadAmount,0,100000000,"Overhead","costing"],[overheadRecoveryBasis,0,100000000,"Recovery basis","costing"],[selfPayout,0,100000000,"Owner payout","costing"],[defaultMarkupPercent,0,1000,"Markup","costing"],[outstandingBalanceAlertThreshold,0,100000000,"Balance alert","operations"],[typicalActiveOrdersPerStaff,1,10000,"Staff capacity","operations"],[depositPercent,0,100,"Deposit","policies"],[rushFeePercent,0,100,"Rush fee","policies"],[quoteValidDays,0,3650,"Quote validity","policies"],[fittingsIncluded,0,1000,"Fittings","policies"],[alterationsWindowDays,0,3650,"Alterations window","policies"]];
+          const invalid = limits.find(([value,min,max]) => !Number.isFinite(value) || value < min || value > max);
+          if (invalid) { setTab(invalid[4]); toast.error(`${invalid[3]} must be between ${invalid[1]} and ${invalid[2]}.`); return; }
+          const pricingError = canManageQuotePricing && ("quoteGarmentLabour" in changed || "quoteComplexityLevels" in changed) ? validateQuotePricing(garmentLabour, complexityLevels) : null;
+          if (pricingError) { setTab("policies"); toast.error(pricingError); return; }
+          if (dirty && !saveMutation.isPending) saveMutation.mutate(changed);
         }}
         className="mt-6"
       >
         <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] items-start">
-          <nav aria-label="Settings sections" className="lg:sticky lg:top-6 flex lg:flex-col gap-1 overflow-x-auto min-w-0 max-w-full rounded-xl border border-[#EEDFE3] bg-white p-1.5 [scrollbar-width:thin]">
+          <nav aria-label="Settings sections" className="lg:sticky lg:top-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-1 gap-2 min-w-0 rounded-xl border border-[#EEDFE3] bg-white p-2">
             {SETTINGS_TABS.map((t) => (
               <button
                 key={t.key}
                 type="button"
                 onClick={() => setTab(t.key)}
                 aria-current={tab === t.key ? "page" : undefined}
+                aria-controls={`settings-${t.key}`}
                 className={cn(
-                  "flex shrink-0 items-center gap-2 rounded-lg px-3 py-2.5 text-left text-xs sm:text-sm whitespace-nowrap transition",
+                  "flex min-w-0 items-center gap-2 rounded-lg px-3 py-3 text-left text-xs sm:text-sm leading-tight transition",
                   tab === t.key ? "bg-[#800020] text-white font-medium" : "text-stone-600 hover:bg-stone-50"
                 )}
               >
                 <t.icon className="w-4 h-4 shrink-0" />
-                {t.label}
+                <span className="min-w-0 break-words">{t.label}</span>
               </button>
             ))}
           </nav>
 
           <div className="min-w-0">
-          <div hidden={tab !== "plan"}>
-            <PlanSettingsPanel />
-          </div>
-          <div hidden={tab !== "general"} className="grid gap-5">
+          {tab === "plan" && <div id="settings-plan"><PlanSettingsPanel /></div>}
+          <div id="settings-general" className={tab === "general" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">General & business details</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Studio identity, contact information and the registration details printed on invoices.</p>
@@ -439,7 +463,7 @@ export default function Settings() {
           </div>
         </SectionCard>
           </div>
-          <div hidden={tab !== "costing"} className="grid gap-5">
+          <div id="settings-costing" className={tab === "costing" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Costing & overhead</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Monthly overheads and the overhead recovery rate applied to every order (as a percentage of non-labour cost).</p>
@@ -487,7 +511,7 @@ export default function Settings() {
                 value={newItemName}
                 onChange={(e) => setNewItemName(e.target.value)}
                 placeholder="e.g. Electricity"
-                className="bg-white flex-1"
+                className="bg-white min-w-0 flex-1"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -620,7 +644,7 @@ export default function Settings() {
           </div>
         </SectionCard>
           </div>
-          <div hidden={tab !== "operations"} className="grid gap-5">
+          <div id="settings-operations" className={tab === "operations" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Operations & alerts</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Capacity and outstanding-balance alerts used by the dashboard.</p>
@@ -658,7 +682,7 @@ export default function Settings() {
           </div>
         </SectionCard>
           </div>
-          <div hidden={tab !== "policies"} className="grid gap-5">
+          <div id="settings-policies" className={tab === "policies" ? "grid gap-5" : "hidden"}>
             <div className="pb-1">
               <h2 className="font-display font-semibold text-[#2F151B] text-xl leading-tight">Pricing policies & terms</h2>
               <p className="text-sm text-stone-500 mt-1 max-w-xl">Deposits, rush fees, fittings and the client-facing terms shown on quotes and invoices.</p>
@@ -682,7 +706,7 @@ export default function Settings() {
             {complexityLevels.map((item,index)=>(
               <div key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(90px,130px)_auto] items-end gap-2">
                 <div className="min-w-0"><Label htmlFor={`complexity-name-${index}`}>Level</Label><Input id={`complexity-name-${index}`} maxLength={80} value={item.name} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,name:e.target.value}:x))}/></div>
-                <div className="min-w-0"><Label htmlFor={`complexity-multiplier-${index}`}>Multiplier ×</Label><Input id={`complexity-multiplier-${index}`} type="number" min={0.01} max={100} step={0.05} value={item.multiplier} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,multiplier:Number(e.target.value)}:x))}/></div>
+                <div className="min-w-0"><Label htmlFor={`complexity-multiplier-${index}`}>Multiplier ×</Label><Input id={`complexity-multiplier-${index}`} type="number" min={0.01} max={100} step={0.01} value={item.multiplier} onChange={e=>setComplexityLevels(prev=>prev.map((x,i)=>i===index?{...x,multiplier:Number(e.target.value)}:x))}/></div>
                 <button type="button" aria-label={`Remove ${item.name}`} disabled={complexityLevels.length<=1} onClick={()=>setComplexityLevels(prev=>prev.filter((_,i)=>i!==index))} className="grid size-10 place-items-center rounded-lg border border-[#EEDFE3] text-stone-500 disabled:opacity-40"><X className="size-4"/></button>
               </div>
             ))}
@@ -824,8 +848,8 @@ export default function Settings() {
         </div>
 
         <div className="mt-6 flex items-center justify-end gap-3 rounded-xl border border-[#EEDFE3] bg-white px-3 py-2 sm:px-4 sm:py-3 sticky bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] md:bottom-4 z-20 shadow-sm">
-          <p className="hidden sm:block text-xs text-stone-500">Changes across all sections are saved together.</p>
-          <PremiumButton type="submit" loading={saveMutation.isPending} size="lg">
+          <p role="status" className="mr-auto text-xs text-stone-500">{saveMutation.isPending ? "Saving…" : dirty ? "Unsaved changes" : "All changes saved"}</p>
+          <PremiumButton type="submit" disabled={!dirty || !formReady} loading={saveMutation.isPending} size="lg">
             <Save className="w-4 h-4" />
             Save settings
           </PremiumButton>

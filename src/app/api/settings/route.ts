@@ -8,16 +8,17 @@ export async function GET() {
     const ctx = await getTenant();
     if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    let { data: settings } = await ctx.db
+    let { data: settings, error: settingsReadError } = await ctx.db
       .from("settings")
       .select("*")
       .eq("shop_id", ctx.shopId)
       .maybeSingle();
+    if (settingsReadError) throw settingsReadError;
 
     if (!settings) {
       const { data: created, error } = await ctx.db
         .from("settings")
-        .insert({ shop_id: ctx.shopId, owner_gender: "Madam", studio_name: "Madam Studio" })
+        .insert({ shop_id: ctx.shopId, owner_gender: "Female", studio_name: "Madam Studio" })
         .select("*")
         .single();
       if (error) throw error;
@@ -35,7 +36,7 @@ export async function PATCH(req: Request) {
     const ctx = await getTenant();
     if (!ctx) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body: Record<string, any> = await req.json();
+    const body: Record<string, any> = await req.json().catch(() => null);
     if (!body || typeof body !== "object" || Array.isArray(body)) {
       return Response.json({ error: "Invalid settings payload." }, { status: 400 });
     }
@@ -43,21 +44,31 @@ export async function PATCH(req: Request) {
       return Response.json({ error: "Only the studio owner can change quote pricing defaults." }, { status: 403 });
     }
 
-    let { data: settings } = await ctx.db
+    let { data: settings, error: settingsReadError } = await ctx.db
       .from("settings")
       .select("id")
       .eq("shop_id", ctx.shopId)
       .maybeSingle();
+    if (settingsReadError) throw settingsReadError;
     if (!settings) {
       const { data: created, error } = await ctx.db
         .from("settings")
-        .insert({ shop_id: ctx.shopId, owner_gender: "Madam", studio_name: "Madam Studio" })
+        .insert({ shop_id: ctx.shopId, owner_gender: "Female", studio_name: "Madam Studio" })
         .select("id")
         .single();
       if (error) throw error;
       settings = created;
     }
 
+    if ("studioName" in body && (typeof body.studioName !== "string" || !body.studioName.trim() || body.studioName.length > 200)) return Response.json({ error: "Enter a valid studio name (up to 200 characters)." }, { status: 400 });
+    if ("ownerGender" in body && !["Male", "Female"].includes(body.ownerGender)) return Response.json({ error: "Select a valid owner gender." }, { status: 400 });
+    if ("contactEmail" in body && (typeof body.contactEmail !== "string" || (body.contactEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.contactEmail.trim())))) return Response.json({ error: "Enter a valid contact email." }, { status: 400 });
+    if ("fullBalanceBeforePickup" in body && typeof body.fullBalanceBeforePickup !== "boolean") return Response.json({ error: "Invalid balance policy." }, { status: 400 });
+    const numericLimits: Record<string, [number, number]> = { overheadAmount:[0,100000000], overheadRecoveryBasis:[0,100000000], selfPayout:[0,100000000], defaultMarkupPercent:[0,1000], outstandingBalanceAlertThreshold:[0,100000000], typicalActiveOrdersPerStaff:[1,10000], depositPercent:[0,100], rushFeePercent:[0,100], quoteValidDays:[0,3650], fittingsIncluded:[0,1000], alterationsWindowDays:[0,3650] };
+    for (const [key, [min,max]] of Object.entries(numericLimits)) {
+      if (key in body && (typeof body[key] !== "number" || !Number.isFinite(body[key]) || body[key] < min || body[key] > max)) return Response.json({ error: `Invalid ${key}: expected a number between ${min} and ${max}.` }, { status: 400 });
+    }
+    if ("overheadItems" in body && (!Array.isArray(body.overheadItems) || body.overheadItems.some((item: any) => typeof item?.name !== "string" || !item.name.trim() || typeof item.amount !== "number" || !Number.isFinite(item.amount) || item.amount < 0))) return Response.json({ error: "Invalid overhead items." }, { status: 400 });
     const data: Database["public"]["Tables"]["settings"]["Update"] = {};
     const fieldMap: Record<string, string> = {
       ownerGender: "owner_gender",
@@ -89,8 +100,8 @@ export async function PATCH(req: Request) {
       const { data: currentPricing, error: pricingReadError } = await ctx.db.from("settings")
         .select("quote_garment_labour, quote_complexity_levels").eq("id", settings.id).single();
       if (pricingReadError) throw pricingReadError;
-      const garmentRaw = body.quoteGarmentLabour ?? currentPricing.quote_garment_labour;
-      const levelRaw = body.quoteComplexityLevels ?? currentPricing.quote_complexity_levels;
+      const garmentRaw = "quoteGarmentLabour" in body ? body.quoteGarmentLabour : parseGarmentLabour(currentPricing.quote_garment_labour);
+      const levelRaw = "quoteComplexityLevels" in body ? body.quoteComplexityLevels : parseQuoteComplexities(currentPricing.quote_complexity_levels);
       if (!Array.isArray(garmentRaw) || !Array.isArray(levelRaw) ||
           garmentRaw.some((x: any) => typeof x?.name !== "string" || !x.name.trim() || x.name.trim().length > 80 || typeof x.baseLabour !== "number" || !Number.isFinite(x.baseLabour) || x.baseLabour < 0 || x.baseLabour > 10000000) ||
           levelRaw.some((x: any) => typeof x?.name !== "string" || !x.name.trim() || x.name.trim().length > 80 || typeof x.multiplier !== "number" || !Number.isFinite(x.multiplier) || x.multiplier <= 0 || x.multiplier > 100)) {
@@ -100,8 +111,8 @@ export async function PATCH(req: Request) {
       const levels = parseQuoteComplexities(levelRaw);
       const invalid = validateQuotePricing(garments, levels);
       if (invalid) return Response.json({ error: invalid }, { status: 400 });
-      data.quote_garment_labour = garments;
-      data.quote_complexity_levels = levels;
+      if ("quoteGarmentLabour" in body) data.quote_garment_labour = garments;
+      if ("quoteComplexityLevels" in body) data.quote_complexity_levels = levels;
     }
 
     // Shared quote suggestions: validated, owner-managed and tenant-scoped.
@@ -205,6 +216,7 @@ export async function PATCH(req: Request) {
       .from("settings")
       .update(data)
       .eq("id", settings.id)
+      .eq("shop_id", ctx.shopId)
       .select("*")
       .single();
     if (error) throw error;
