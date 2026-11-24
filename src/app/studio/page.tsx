@@ -49,6 +49,9 @@ const Contacts = dynamic(() => import("@/views/Contacts").then((m) => m.default)
 const AssetRegister = dynamic(() => import("@/views/AssetRegister").then((m) => m.default), { ssr: false });
 const UserProfile = dynamic(() => import("@/views/UserProfile").then((m) => m.default), { ssr: false });
 
+const ReadyToWearManager = dynamic(() => import("@/components/shop/ReadyToWearManager"), { ssr: false });
+function StudioShop(){const user=useAuth(s=>s.user);return user?.role==="madam" && user.shopId ? <ReadyToWearManager shopId={user.shopId} embedded/> : <p className="p-6">Only the studio owner can manage products.</p>;}
+
 function CurrentView() {
   const { view } = useNav();
   const enabledMenus = useMenuSettings((state) => state.enabled);
@@ -127,6 +130,7 @@ function ViewOnlyBanner({ menuKey }: { menuKey: ReturnType<typeof menuForView> }
 
 function ViewSwitch({ view }: { view: ReturnType<typeof useNav.getState>["view"] }) {
   switch (view) {
+    case "ready-to-wear": return <StudioShop />;
     case "dashboard": return <Dashboard />;
     case "customers": return <Customers />;
     case "customer": return <CustomerProfile />;
