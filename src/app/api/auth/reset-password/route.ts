@@ -3,7 +3,8 @@ import { createRequestClient } from "@/lib/db/requestClient";
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const password = typeof body.password === "string" ? body.password : "";
+  const password = typeof body?.password === "string" ? body.password : "";
+  if (password.length > 1024) return NextResponse.json({error:"Password is too long."},{status:400});
   if (password.length < 8) {
     return NextResponse.json({ error: "Use a password with at least 8 characters." }, { status: 400 });
   }
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: "Could not update your password. Request a new reset link." }, { status: 400 });
     }
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ error: "Could not update your password. Request a new reset link." }, { status: 500 });
   }
