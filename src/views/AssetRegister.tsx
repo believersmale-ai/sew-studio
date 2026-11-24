@@ -47,11 +47,14 @@ export default function AssetRegister() {
   const qc = useQueryClient();
   const { role } = useRole();
   const canEdit = useRoleAccess((s) => s.data?.access["asset-register"]?.edit) ?? role === "madam";
+  const [search,setSearch]=useState("");
+  const [condition,setCondition]=useState("");
+  const [service,setService]=useState("");
   const [category, setCategory] = useState("");
   const [status, setStatus] = useState("");
   const [open, setOpen] = useState<{ id: string | null } | null>(null);
 
-  const { data, isLoading, isError } = useQuery<{ assets: Asset[]; staff: Staff[] }>({ queryKey: ["asset-register"], queryFn: () => apiGet("/api/asset-register") });
+  const { data, isLoading, isError, refetch } = useQuery<{ assets: Asset[]; staff: Staff[] }>({ queryKey: ["asset-register"], queryFn: () => apiGet("/api/asset-register") });
   const { data: settings } = useQuery<Settings>({ queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings") });
   const currency = settings?.currency || "GHS";
   const assets = useMemo(() => data?.assets ?? [], [data]);
@@ -64,15 +67,16 @@ export default function AssetRegister() {
   const overdue = live.filter((a) => a.nextServiceDue && a.nextServiceDue < today);
   const dueSoon = live.filter((a) => a.nextServiceDue && a.nextServiceDue >= today && a.nextServiceDue <= soon);
   const needsAttention = live.filter((a) => a.condition === "Needs Repair" && a.status === "In Use");
-  const totalCost = live.reduce((n, a) => n + (a.purchaseCost || 0), 0);
-  const shown = assets.filter((a) => (!category || a.category === category) && (!status || a.status === status));
+  const totalCost = live.reduce((n, a) => n + (Number(a.purchaseCost) || 0), 0);
+  const shown = assets.filter((a) => (!category || a.category === category) && (!status || a.status === status) && (!condition || a.condition===condition) && (!service || (service==="overdue"?overdue.includes(a):service==="soon"?dueSoon.includes(a):!a.nextServiceDue&&a.status!=="Retired")) && `${a.name} ${a.location} ${a.assignedName} ${a.category}`.toLowerCase().includes(search.trim().toLowerCase()));
+  const exportCsv=()=>{const cell=(v:unknown)=>{const raw=String(v??"");return `"`+(/^[\s]*[=+@-]|^[\t\r\n]/.test(raw)?"\x27"+raw:raw).replaceAll(`"`,`""`)+`"`;};const rows=[["Name","Category","Condition","Status","Location","Assigned staff","Purchase date",`Purchase cost (${currency})`,"Next service",`Maintenance cost (${currency})`],...shown.map(a=>[a.name,a.category,a.condition,a.status,a.location,a.assignedName,a.purchaseDate,a.purchaseCost,a.nextServiceDue,a.maintenanceCost])];const url=URL.createObjectURL(new Blob(["\uFEFF"+rows.map(r=>r.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download="asset-register.csv";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 
   return (
     <div className="mx-auto w-full max-w-[1100px] px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader eyebrow="Studio equipment" eyebrowIcon={Wrench} title="Asset Register" subtitle="Every machine, tool and piece of equipment, with its condition and maintenance history."
         actions={canEdit ? <PremiumButton onClick={() => setOpen({ id: null })}><Plus className="size-4" /> Add Asset</PremiumButton> : undefined} />
 
-      {(overdue.length > 0 || needsAttention.length > 0 || dueSoon.length > 0) && (
+      {!isLoading&&!isError&&(overdue.length > 0 || needsAttention.length > 0 || dueSoon.length > 0) && (
         <div role="status" className="mb-4 space-y-1.5 rounded-lg border border-[#E6D4D8] bg-[#FBF1F3] px-4 py-3 text-sm text-[#650019]">
           {overdue.length > 0 && <p className="flex items-center gap-2"><AlertTriangle className="size-4 shrink-0" />{overdue.length} asset{overdue.length === 1 ? " is" : "s are"} overdue for a checkup: {overdue.slice(0, 3).map((a) => a.name).join(", ")}{overdue.length > 3 ? "…" : ""}.</p>}
           {needsAttention.length > 0 && <p className="flex items-center gap-2"><AlertTriangle className="size-4 shrink-0" />{needsAttention.map((a) => a.name).slice(0, 3).join(", ")} {needsAttention.length === 1 ? "needs" : "need"} repair but {needsAttention.length === 1 ? "is" : "are"} still marked In Use. Log a repair or change the status.</p>}
@@ -81,19 +85,23 @@ export default function AssetRegister() {
       )}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[["Assets", String(live.length)], ["Value at cost", formatCurrency(totalCost, currency)], ["Overdue", String(overdue.length)], ["Spent on upkeep", formatCurrency(assets.reduce((n, a) => n + a.maintenanceCost, 0), currency)]].map(([k, v]) => (
-          <div key={k} className="rounded-xl border border-[#EEDFE3] bg-white px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{k}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#2F151B]">{v}</p></div>
+        {[["Assets", String(live.length)], ["Value at cost", formatCurrency(totalCost, currency)], ["Overdue", String(overdue.length)], ["Spent on upkeep", formatCurrency(assets.reduce((n, a) => n + (Number(a.maintenanceCost)||0), 0), currency)]].map(([k, v]) => (
+          <div key={k} className="rounded-xl border border-[#EEDFE3] bg-white px-4 py-3"><p className="text-[11px] font-semibold uppercase tracking-wider text-stone-500">{k}</p><p className="mt-1 text-lg font-semibold tabular-nums text-[#2F151B]">{isLoading||isError?"—":v}</p></div>
         ))}
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-3">
-        <select aria-label="Filter by category" className={`${field} w-48`} value={category} onChange={(e) => setCategory(e.target.value)}><option value="">All Categories</option>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-        <select aria-label="Filter by status" className={`${field} w-48`} value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All Statuses</option>{STATUSES.map((c) => <option key={c}>{c}</option>)}</select>
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <input aria-label="Search assets" placeholder="Search equipment, location or staff" className={field} value={search} onChange={e=>setSearch(e.target.value)}/>
+        <select aria-label="Filter condition" className={field} value={condition} onChange={e=>setCondition(e.target.value)}><option value="">All conditions</option>{CONDITIONS.map(c=><option key={c}>{c}</option>)}</select>
+        <select aria-label="Filter maintenance" className={field} value={service} onChange={e=>setService(e.target.value)}><option value="">All service schedules</option><option value="overdue">Overdue service</option><option value="soon">Due within 30 days</option><option value="missing">No service scheduled</option></select>
+        <select aria-label="Filter by category" className={field} value={category} onChange={(e) => setCategory(e.target.value)}><option value="">All Categories</option>{CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
+        <select aria-label="Filter by status" className={field} value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All Statuses</option>{STATUSES.map((c) => <option key={c}>{c}</option>)}</select>
       </div>
 
+      <div className="mb-4 flex flex-wrap gap-3"><button className="text-sm underline text-[#800020]" onClick={()=>{setSearch("");setCategory("");setStatus("");setCondition("");setService("");}}>Reset filters</button>{canEdit&&<PremiumButton variant="outline" disabled={isLoading||isError||!shown.length} onClick={exportCsv}>Export CSV</PremiumButton>}</div>
       <SectionCard title={`${shown.length} asset${shown.length === 1 ? "" : "s"}`}>
         {isLoading ? <p className="p-6 text-sm text-stone-400">Loading…</p>
-          : isError ? <p role="alert" className="p-6 text-sm text-red-700">Could not load the register. Please refresh.</p>
+          : isError ? <p role="alert" className="p-6 text-sm text-red-700">Could not load the register. <button className="underline" onClick={()=>void refetch()}>Retry</button></p>
           : !assets.length ? <EmptyState icon={Wrench} title="No assets yet" description="Add your machines, mannequins and equipment to track their condition and servicing." action={canEdit ? <PremiumButton size="sm" onClick={() => setOpen({ id: null })}><Plus className="size-4" /> Add Asset</PremiumButton> : undefined} />
           : !shown.length ? <p className="p-6 text-sm text-stone-500">No assets match these filters.</p>
           : (
@@ -151,15 +159,15 @@ function AssetDialog({ id, staff, currency, canEdit, onClose, onChanged }: { id:
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const [log, setLog] = useState({ servicedOn: todayISO(), performedBy: "", cost: "", notes: "", nextServiceDue: "", markInUse: true });
+  const [log, setLog] = useState({ servicedOn: todayISO(), performedBy: "", cost: "", notes: "", nextServiceDue: "", markInUse: false, repaired: false });
   const addLog = useMutation({
     mutationFn: () => apiPost(`/api/asset-register/${id}/maintenance`, {
       servicedOn: log.servicedOn, performedBy: log.performedBy, cost: log.cost, notes: log.notes,
       ...(log.nextServiceDue ? { nextServiceDue: log.nextServiceDue } : {}),
-      ...(f.condition === "Needs Repair" ? { condition: "Good" } : {}),
-      markInUse: log.markInUse && f.status === "Under Repair",
+      ...(log.repaired && detail.data?.condition === "Needs Repair" ? { condition: "Good" } : {}),
+      markInUse: log.markInUse && detail.data?.status === "Under Repair" && (detail.data?.condition !== "Needs Repair" || log.repaired),
     }),
-    onSuccess: () => { toast.success("Maintenance logged"); setLog({ ...log, performedBy: "", cost: "", notes: "", nextServiceDue: "" }); setForm(null); invalidate(); },
+    onSuccess: () => { toast.success("Maintenance logged"); setLog({ ...log, performedBy: "", cost: "", notes: "", nextServiceDue: "", repaired:false, markInUse:false }); setForm(null); invalidate(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const delLog = useMutation({
@@ -167,15 +175,16 @@ function AssetDialog({ id, staff, currency, canEdit, onClose, onChanged }: { id:
     onSuccess: invalidate, onError: (e: Error) => toast.error(e.message),
   });
 
-  const ro = !canEdit;
+  const busy=save.isPending||del.isPending||addLog.isPending||delLog.isPending;
+  const ro = !canEdit||busy;
   return (
-    <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open onOpenChange={(o) => { if (!o&&!busy) onClose(); }}>
       <DialogContent className="max-w-2xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isNew ? "Add Asset" : detail.data?.name || "Asset"}</DialogTitle>
           <DialogDescription>{isNew ? "Record a machine, tool or piece of equipment." : "Details, condition and maintenance history."}</DialogDescription>
         </DialogHeader>
-        {!isNew && detail.isLoading ? <p className="py-6 text-sm text-stone-400">Loading…</p> : !isNew && detail.isError ? <p role="alert" className="py-6 text-sm text-red-700">Could not load this asset.</p> : (
+        {!isNew && detail.isLoading ? <p className="py-6 text-sm text-stone-400">Loading…</p> : !isNew && detail.isError ? <p role="alert" className="py-6 text-sm text-red-700">Could not load this asset. <button className="underline" onClick={()=>void detail.refetch()}>Retry</button></p> : (
           <>
             <form className="grid gap-3 sm:grid-cols-2" onSubmit={(e) => { e.preventDefault(); if (f.name.trim() && !ro) save.mutate(); }}>
               <label className={`${label} sm:col-span-2`}>Name<input autoFocus={isNew} disabled={ro} className={`${field} mt-1`} value={f.name} maxLength={120} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Juki DDL-8700 sewing machine" required /></label>
@@ -190,7 +199,7 @@ function AssetDialog({ id, staff, currency, canEdit, onClose, onChanged }: { id:
               {f.condition === "Needs Repair" && f.status === "In Use" && <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" />This needs repair but is marked In Use. Change the status to Under Repair while it is being fixed.</p>}
               <label className={`${label} sm:col-span-2`}>Notes<textarea rows={2} disabled={ro} maxLength={1000} className={`${field} mt-1 h-auto py-2`} value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder="Serial number, supplier, warranty…" /></label>
               <div className="flex items-center justify-between gap-3 pt-1 sm:col-span-2">
-                {!isNew && canEdit ? <button type="button" onClick={() => { if (window.confirm(`Remove ${detail.data?.name}? Its maintenance history is deleted too.`)) del.mutate(); }} className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700 hover:underline"><Trash2 className="size-4" />Remove asset</button> : <span />}
+                {!isNew && canEdit ? <button type="button" onClick={() => { if (!busy && window.confirm(`Remove ${detail.data?.name}? Its maintenance history is deleted too.`)) del.mutate(); }} className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700 hover:underline"><Trash2 className="size-4" />Remove asset</button> : <span />}
                 {canEdit && <PremiumButton type="submit" loading={save.isPending} disabled={!f.name.trim()}>{isNew ? "Add asset" : "Save changes"}</PremiumButton>}
               </div>
             </form>
@@ -199,14 +208,15 @@ function AssetDialog({ id, staff, currency, canEdit, onClose, onChanged }: { id:
               <section aria-label="Maintenance history" className="mt-2 border-t border-[#EEDFE3] pt-4">
                 <h3 className="text-sm font-semibold text-[#2F151B]">Maintenance history{detail.data && detail.data.maintenance.length > 0 ? ` · ${formatCurrency(detail.data.maintenance.reduce((n, l) => n + l.cost, 0), currency)} spent` : ""}</h3>
                 {canEdit && (
-                  <form className="mt-3 grid gap-3 rounded-xl bg-[#FCF8F9] p-3 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); addLog.mutate(); }}>
+                  <form className="mt-3 grid gap-3 rounded-xl bg-[#FCF8F9] p-3 sm:grid-cols-4" onSubmit={(e) => { e.preventDefault(); if(ro)return;if(form){toast.error("Save asset changes before logging maintenance.");return;}if(log.nextServiceDue&&log.nextServiceDue<log.servicedOn){toast.error("Next checkup cannot precede the service date.");return;}addLog.mutate(); }}>
                     <label className={label}>Date<input type="date" required className={`${field} mt-1`} value={log.servicedOn} onChange={(e) => setLog({ ...log, servicedOn: e.target.value })} /></label>
                     <label className={label}>Done by<input className={`${field} mt-1`} maxLength={120} value={log.performedBy} onChange={(e) => setLog({ ...log, performedBy: e.target.value })} placeholder="Name" /></label>
                     <label className={label}>Cost ({currency})<input type="number" min={0} step="0.01" inputMode="decimal" className={`${field} mt-1`} value={log.cost} onChange={(e) => setLog({ ...log, cost: e.target.value })} /></label>
                     <label className={label}>Next checkup<input type="date" className={`${field} mt-1`} value={log.nextServiceDue} onChange={(e) => setLog({ ...log, nextServiceDue: e.target.value })} /></label>
                     <label className={`${label} sm:col-span-3`}>What was done<input className={`${field} mt-1`} maxLength={500} value={log.notes} onChange={(e) => setLog({ ...log, notes: e.target.value })} placeholder="e.g. Replaced belt, oiled and tested" /></label>
                     <div className="flex items-end"><PremiumButton type="submit" size="md" loading={addLog.isPending} className="w-full">Log service</PremiumButton></div>
-                    {f.status === "Under Repair" && <label className="flex items-center gap-2 text-xs text-stone-600 sm:col-span-4"><input type="checkbox" checked={log.markInUse} onChange={(e) => setLog({ ...log, markInUse: e.target.checked })} />Mark the asset In Use again{f.condition === "Needs Repair" ? " and set its condition to Good" : ""}</label>}
+                    {f.condition==="Needs Repair"&&<label className="flex items-center gap-2 text-xs sm:col-span-4"><input type="checkbox" checked={log.repaired} onChange={e=>setLog({...log,repaired:e.target.checked})}/> Confirm repair completed and condition is Good</label>}
+                    {f.status === "Under Repair" && <label className="flex items-center gap-2 text-xs text-stone-600 sm:col-span-4"><input type="checkbox" checked={log.markInUse} onChange={(e) => setLog({ ...log, markInUse: e.target.checked })} />Mark the asset In Use again</label>}
                   </form>
                 )}
                 {detail.data && detail.data.maintenance.length === 0 ? <p className="mt-3 text-sm text-stone-500">No maintenance logged yet.</p> : (
@@ -214,7 +224,7 @@ function AssetDialog({ id, staff, currency, canEdit, onClose, onChanged }: { id:
                     {detail.data?.maintenance.map((l) => (
                       <li key={l.id} className="flex items-start justify-between gap-3 border-t border-[#EEDFE3] py-2.5 text-sm first:border-t-0">
                         <span><span className="font-medium text-[#2F151B]">{formatDate(l.servicedOn)}</span>{l.performedBy && <span className="text-stone-500"> · {l.performedBy}</span>}{l.notes && <span className="block text-stone-600">{l.notes}</span>}</span>
-                        <span className="flex items-center gap-3 tabular-nums text-stone-700">{l.cost > 0 ? formatCurrency(l.cost, currency) : "-"}{canEdit && <button type="button" aria-label="Delete this entry" onClick={() => { if (window.confirm("Delete this maintenance entry?")) delLog.mutate(l.id); }} className="text-stone-400 hover:text-red-700"><Trash2 className="size-4" /></button>}</span>
+                        <span className="flex items-center gap-3 tabular-nums text-stone-700">{l.cost > 0 ? formatCurrency(l.cost, currency) : "-"}{canEdit && <button type="button" aria-label="Delete this entry" onClick={() => { if (!busy && window.confirm("Delete this maintenance entry?")) delLog.mutate(l.id); }} className="text-stone-400 hover:text-red-700"><Trash2 className="size-4" /></button>}</span>
                       </li>
                     ))}
                   </ul>
