@@ -149,7 +149,7 @@ export default function Settings() {
   const [cancellationPolicyText, setCancellationPolicyText] = useState("");
 
   const hydrated = useRef<ShopSettings | null>(null);
-  const baseline = useRef<Record<string, unknown> | null>(null);
+  const [baseline, setBaseline] = useState<Record<string, unknown> | null>(null);
   const [formReady, setFormReady] = useState(false);
   // Do not replace unsaved edits during background query refetches.
   useEffect(() => {
@@ -249,9 +249,9 @@ export default function Settings() {
   };
   const draftKey = JSON.stringify(draft);
   useEffect(() => {
-    if (formReady && !baseline.current) baseline.current = JSON.parse(draftKey);
-  }, [draftKey, formReady]);
-  const changed = Object.fromEntries(Object.entries(draft).filter(([key, value]) => baseline.current && JSON.stringify(value) !== JSON.stringify(baseline.current[key])));
+    if (formReady && !baseline) setBaseline(JSON.parse(draftKey));
+  }, [draftKey, formReady, baseline]);
+  const changed = Object.fromEntries(Object.entries(draft).filter(([key, value]) => baseline && JSON.stringify(value) !== JSON.stringify(baseline[key])));
   const dirty = Object.keys(changed).length > 0;
   useEffect(() => {
     if (!dirty) return;
@@ -262,7 +262,7 @@ export default function Settings() {
   const saveMutation = useMutation({
     mutationFn: (patch: Record<string, unknown>) => apiPatch<ShopSettings>("/api/settings", patch),
     onSuccess: (updated, patch) => {
-      baseline.current = { ...baseline.current, ...patch };
+      setBaseline(previous => ({ ...previous, ...patch }));
       toast.success("Settings saved");
       queryClient.setQueryData(["settings"], updated);
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
