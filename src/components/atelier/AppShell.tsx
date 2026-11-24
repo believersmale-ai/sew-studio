@@ -37,6 +37,7 @@ import {
   LineChart,
   ChevronDown,
   Search,
+  Store,
 } from "lucide-react";
 import { useRole, type Role } from "@/stores/role";
 import { useNav, type ViewKey } from "@/stores/nav";
@@ -95,6 +96,10 @@ const SECTIONS: Record<Role, NavSection[]> = {
         { to: "contacts", label: "Contacts", icon: Contact },
         { to: "asset-register", label: "Asset Register", icon: Wrench },
       ],
+    },
+    {
+      label: "Commerce",
+      items: [{ to: "ready-to-wear", label: "Ready-to-Wear Shop", icon: Store }],
     },
     {
       label: "Money",
@@ -242,6 +247,7 @@ const SECTIONS: Record<Role, NavSection[]> = {
 // Short labels for the phone bottom bar so nothing is cut off.
 const SHORT_LABEL: Partial<Record<ViewKey, string>> = {
   dashboard: "Home",
+  "ready-to-wear": "Shop",
   customers: "Clients",
   "my-jobs": "Jobs",
   community: "Community",
@@ -251,7 +257,7 @@ const SHORT_LABEL: Partial<Record<ViewKey, string>> = {
 // Mobile: top 5 priority items per role (rest in a "More" sheet)
 const MOBILE_PRIORITY: Record<Role, ViewKey[]> = {
   // Owners start with the everyday four; every other tool is under "More".
-  madam: ["dashboard", "customers", "orders", "board"],
+  madam: ["dashboard", "customers", "orders", "ready-to-wear"],
   trainer: ["dashboard", "orders", "progress", "community", "board"],
   staff: ["dashboard", "orders", "board", "tasks", "community"],
   trainee: ["dashboard", "orders", "progress", "tasks", "community"],
@@ -311,6 +317,7 @@ const VIEW_META: Record<ViewKey, { label: string; icon: IconType }> = {
   messages: { label: "Messages", icon: Send },
   "my-jobs": { label: "My Jobs", icon: Briefcase },
   profile: { label: "My Profile", icon: UserRound },
+  "ready-to-wear": { label: "Ready-to-Wear Shop", icon: Store },
   settings: { label: "Settings", icon: SettingsIcon },
 };
 
@@ -319,6 +326,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { view, go } = useNav();
   const { user, logout } = useAuth();
   const { enabled, error: menuSettingsError, load: loadMenuSettings } = useMenuSettings();
+  const [navSearch, setNavSearch] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
   const [moreSearch, setMoreSearch] = useState("");
   const moreSearchRef = useRef<HTMLInputElement>(null);
@@ -483,6 +491,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           aria-label="Primary"
           className="flex-1 overflow-y-auto overflow-x-hidden scroll-slim px-3 lg:px-3.5 py-5"
         >
+          <label className="mb-4 flex items-center gap-2 rounded-lg border border-white/20 px-3 py-2 text-white"><Search className="size-4 shrink-0"/><input aria-label="Search navigation" value={navSearch} onChange={e=>setNavSearch(e.target.value)} placeholder="Find a workspace" className="min-w-0 w-full bg-transparent text-sm outline-none placeholder:text-white/60"/></label>
           {(() => {
             const BASICS = ["dashboard", "customers", "orders", "board"] as ViewKey[];
             const collapse = false; // every destination stays visible, grouped by section
@@ -491,7 +500,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               ? sections
                   .map((sec) => ({ ...sec, items: sec.items.filter((i) => !BASICS.includes(i.to)) }))
                   .filter((sec) => sec.items.length > 0)
-              : sections;
+              : sections.map(sec=>({...sec,items:sec.items.filter(i=>(i.label+" "+sec.label).toLowerCase().includes(navSearch.trim().toLowerCase()))})).filter(sec=>sec.items.length);
             const laterCount = laterSections.reduce((n, sec) => n + sec.items.length, 0);
             // Never hide the page the person is on.
             const showLater = !collapse || toolsOpen || laterSections.some((sec) => sec.items.some((i) => isActive(i.to)));
@@ -551,6 +560,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 )}
                 {showLater && (
                   <div className={cn(collapse && "mt-2")}>
+                    {laterSections.length===0 && <p className="px-3 py-4 text-sm text-white/70">No matching workspaces.</p>}
                     {laterSections.map((section, si) => renderSection(section, collapse ? si + 1 : si))}
                   </div>
                 )}
@@ -778,7 +788,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Compact, searchable mobile tools drawer. All sections and access rules remain unchanged. */}
       {moreOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 bg-black/45" onClick={() => setMoreOpen(false)}>
+        <div className="fixed inset-0 z-50 bg-black/45" onClick={() => setMoreOpen(false)}>
           <div ref={moreDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="More tools"
             className="absolute inset-x-0 bottom-0 flex max-h-[86dvh] flex-col rounded-t-2xl border-t border-[#EEDFE3] bg-white shadow-2xl sm:mx-auto sm:max-w-xl"
             onClick={(e) => e.stopPropagation()}>
