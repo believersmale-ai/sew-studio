@@ -16,31 +16,33 @@ export async function paystackSecret() {
 }
 export async function paystackRequest(path:string, options?:RequestInit){
  const response=await fetch(`https://api.paystack.co${path}`,{
-  ...options,headers:{Authorization:`Bearer ${await paystackSecret()}`,"Content-Type":"application/json",...(options?.headers||{})},cache:"no-store"
+  ...options,headers:{Authorization:`Bearer ${await paystackSecret()}`,"Content-Type":"application/json",...(options?.headers||{})},cache:"no-store",signal:options?.signal??AbortSignal.timeout(15000)
  });
  const result=await response.json().catch(()=>({}));
  if(!response.ok||result.status!==true)throw new Error("Payment provider request failed");
  return result.data;
 }
 export async function verifyPaystackSignature(body:string,signature:string|null){
- if(!signature||!/^[a-f0-9]{64}$/i.test(signature))return false;
+ if(!signature||!/^[a-f0-9]{128}$/i.test(signature))return false;
  const expected=createHmac("sha512",await paystackSecret()).update(body).digest();
  const supplied=Buffer.from(signature,"hex");
  return supplied.length===expected.length&&timingSafeEqual(expected,supplied);
 }
 export async function reconcilePayment(reference:string){
  if(!/^rtw_[0-9a-f-]{36}$/.test(reference))return {verified:false};
+ const known=await getPool().query("select id from public.rtw_orders where payment_reference=$1 and payment_method=\x27paystack\x27",[reference]);
+ if(known.rows.length!==1)return {verified:false};
  const transaction=await paystackRequest(`/transaction/verify/${encodeURIComponent(reference)}`);
- if(transaction.reference!==reference||transaction.status!=="success"||transaction.currency!=="GHS")return {verified:false};
+ if(!transaction||transaction.reference!==reference||transaction.status!=="success"||transaction.currency!=="GHS")return {verified:false};
  const client=await getPool().connect();
  try{
   await client.query("BEGIN");
-  const {rows}=await client.query("select id,total,payment_status,status from public.rtw_orders where payment_reference=$1 for update",[reference]);
-  if(!rows.length){await client.query("ROLLBACK");return {verified:false};}
+  const {rows}=await client.query("select id,total,payment_status,status from public.rtw_orders where payment_reference=$1 and payment_method=\x27paystack\x27 for update",[reference]);
+  if(rows.length!==1){await client.query("ROLLBACK");return {verified:false};}
   const order=rows[0],expected=Math.round(Number(order.total)*100);
   if(!Number.isSafeInteger(expected)||transaction.amount!==expected){await client.query("ROLLBACK");return {verified:false};}
   if(order.payment_status==="Paid"){await client.query("COMMIT");return {verified:true,orderId:order.id};}
-  if(order.status==="Cancelled"){await client.query("ROLLBACK");return {verified:false};}
+  if(order.status!=="Pending payment"||!["Unpaid","Pending verification"].includes(order.payment_status)){await client.query("ROLLBACK");return {verified:false};}
   await client.query("update public.rtw_orders set payment_status='Paid',status='Paid',paid_at=now(),updated_at=now() where id=$1",[order.id]);
   await client.query("COMMIT");
   return {verified:true,orderId:order.id};
