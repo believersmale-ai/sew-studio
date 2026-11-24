@@ -35,10 +35,10 @@ function monthLabel(key: string) {
 export default function Projection() {
   const { canSeeBusiness } = useRole();
   const canSee = canSeeBusiness();
-  const { data: orders, isLoading, isError } = useQuery<Order[]>({
+  const { data: orders, isLoading, isError, refetch: retryOrders } = useQuery<Order[]>({
     queryKey: ["orders"], queryFn: () => apiGet<Order[]>("/api/orders"), enabled: canSee,
   });
-  const { data: settings } = useQuery<Settings>({
+  const { data: settings, isLoading: settingsLoading, isError: settingsError, refetch: retrySettings } = useQuery<Settings>({
     queryKey: ["settings"], queryFn: () => apiGet<Settings>("/api/settings"), enabled: canSee,
   });
   const currency = settings?.currency || "GHS";
@@ -61,8 +61,9 @@ export default function Projection() {
       if (key) grouped.set(key, (grouped.get(key) || 0) + (Number(o.sellingPrice) || 0));
     });
     const chart = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => ({ month: monthLabel(key), revenue: value }));
-    const dueSoon = active.filter((o) => o.deliveryDate && new Date(o.deliveryDate).getTime() <= Date.now() + 30 * 86400000).length;
-    return { active, booked, collected, toCollect: Math.max(0, booked - collected), fabric, labour, other, cost, overhead, grossMargin, ownerPay, leftAfterPay, chart, dueSoon };
+    const today = new Date(); today.setHours(0,0,0,0);
+    const dueSoon = active.filter((o) => { const due = o.deliveryDate ? new Date(o.deliveryDate).getTime() : NaN; return due >= today.getTime() && due <= today.getTime() + 30 * 86400000; }).length;
+    return { active, booked, collected, toCollect: active.reduce((sum,o) => sum + Math.max(0, (Number(o.sellingPrice)||0) - (o.payments||[]).reduce((n,p)=>n+(Number(p.amount)||0),0)),0), fabric, labour, other, cost, overhead, grossMargin, ownerPay, leftAfterPay, chart, dueSoon };
   }, [orders, settings]);
 
   if (!canSee) return (
@@ -79,10 +80,10 @@ export default function Projection() {
     <div className="mx-auto w-full max-w-[1440px] px-4 pb-6 pt-4 sm:px-6 lg:px-8 lg:pt-5">
       <PageHeader eyebrow="Financial overview" eyebrowIcon={CircleDollarSign} title="Business Projection" subtitle="A forward-looking view of booked work, money still due, production costs and what the studio may retain." />
 
-      {isLoading ? (
+      {isLoading || settingsLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1,2,3,4].map((n) => <div key={n} className="h-28 animate-pulse rounded-2xl border border-[#EEDFE3] bg-white" />)}</div>
-      ) : isError ? (
-        <SectionCard><EmptyState icon={AlertCircle} title="Projection could not load" description="Please check your connection and try again." /></SectionCard>
+      ) : isError || settingsError ? (
+        <SectionCard><EmptyState icon={AlertCircle} title="Projection could not load" description="Please check your connection and try again." /><button type="button" className="mt-3 text-sm font-semibold text-[#800020] underline" onClick={() => { void retryOrders(); void retrySettings(); }}>Retry loading</button></SectionCard>
       ) : (
         <>
           <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
