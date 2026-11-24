@@ -49,17 +49,9 @@ export async function getTenant(): Promise<TenantContext | null> {
       .select("id, shop_id, role, email, can_manage_freelancers, is_active, shop:shops(suspended_at)")
       .eq("id", userId)
       .single();
-    if (withActive.error) {
-      const legacy = await db
-        .from("profiles")
-        .select("id, shop_id, role, email, can_manage_freelancers, shop:shops(suspended_at)")
-        .eq("id", userId)
-        .single();
-      profile = legacy.data;
-    } else {
-      profile = withActive.data;
-    }
-    if (!profile) return null;
+    if (withActive.error) return null;
+    profile = withActive.data;
+    if (!profile || !profile.shop || !["madam","staff","trainer","trainee"].includes(profile.role)) return null;
     // A member the owner has removed keeps their history but loses access
     // immediately, even if their browser session is still valid.
     if (profile.is_active === false) return null;
@@ -84,7 +76,7 @@ export async function getTenant(): Promise<TenantContext | null> {
       .eq("user_id", userId)
       .eq("shop_id", profile.shop_id)
       .maybeSingle();
-    if (membershipError || !membership || membership.status !== "active") return null;
+    if (membershipError || !membership || membership.status !== "active" || membership.role !== profile.role) return null;
 
     return {
       db,
@@ -164,11 +156,7 @@ export async function getSystemAdminSession(): Promise<SystemAdminContext | null
       .select("id, email, is_super, areas, disabled_at")
       .eq("id", user.id)
       .maybeSingle();
-    if (error) {
-      // The delegation migration has not been applied yet: every existing admin is a full admin.
-      const { data: legacy } = await db.from("system_admins").select("id, email").eq("id", user.id).maybeSingle();
-      return legacy ? { db, adminId: legacy.id, email: legacy.email, isSuper: true, areas: [] } : null;
-    }
+    if (error) return null;
     if (!admin || admin.disabled_at) return null;
 
     return { db, adminId: admin.id, email: admin.email, isSuper: Boolean(admin.is_super), areas: (admin.areas as string[] | null) ?? [] };
