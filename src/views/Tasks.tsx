@@ -177,10 +177,12 @@ export default function Tasks() {
   const [gradeDialogTask, setGradeDialogTask] = useState<TaskWithRelations | null>(null);
   const [taskToDelete, setTaskToDelete] = useState<TaskWithRelations | null>(null);
   const [taskToEdit, setTaskToEdit] = useState<TaskWithRelations | null>(null);
+  const [search,setSearch]=useState("");
+  const [deadline,setDeadline]=useState("all");
   const [staffFilter, setStaffFilter] = useState<string>("All");
   const [priorityFilter, setPriorityFilter] = useState<string>("All Priority");
 
-  const { data: tasks = [], isLoading, isError } = useQuery<TaskWithRelations[]>({
+  const { data: tasks = [], isLoading, isError, refetch } = useQuery<TaskWithRelations[]>({
     queryKey: ["tasks"],
     queryFn: () => apiGet<TaskWithRelations[]>("/api/tasks"),
   });
@@ -247,9 +249,12 @@ export default function Tasks() {
       }
       if (priorityFilter !== "All Priority" && t.priority !== priorityFilter)
         return false;
+      if (!`${t.title} ${t.notes??""} ${t.order?.garmentDesign??""}`.toLowerCase().includes(search.trim().toLowerCase())) return false;
+      if(deadline==="overdue" && (t.status==="Done"||!isOverdue(t.dueDate)))return false;
+      if(deadline==="missing" && (t.status==="Done"||t.dueDate))return false;
       return true;
     });
-  }, [scopedTasks, staffFilter, priorityFilter]);
+  }, [scopedTasks, staffFilter, priorityFilter, search, deadline]);
 
   const grouped = useMemo(() => {
     const map: Record<ColumnStatus, TaskWithRelations[]> = {
@@ -277,7 +282,7 @@ export default function Tasks() {
 
   // Grade summary
   const gradedTasks = useMemo(
-    () => filtered.filter((t) => t.score != null && t.maxScore != null),
+    () => filtered.filter((t) => t.score != null && t.maxScore != null && t.maxScore > 0),
     [filtered]
   );
   const doneCount = filtered.filter((t) => t.status === "Done").length;
@@ -302,6 +307,7 @@ export default function Tasks() {
     onSuccess: () => {
       toast.success("Task created");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setDialogOpen(false);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -313,6 +319,7 @@ export default function Tasks() {
     onSuccess: (task) => {
       toast.success(`Task moved to ${task.status}`);
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
     },
     onError: (err: Error) => toast.error(err.message),
   });
@@ -340,6 +347,7 @@ export default function Tasks() {
         description: `${task.title} — ${task.score}/${task.maxScore}`,
       });
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setGradeDialogTask(null);
     },
     onError: (err: Error) => toast.error(err.message),
@@ -351,6 +359,7 @@ export default function Tasks() {
     onSuccess: () => {
       toast.success("Task updated");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["order"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setTaskToEdit(null);
@@ -363,6 +372,7 @@ export default function Tasks() {
     onSuccess: () => {
       toast.success("Task deleted");
       queryClient.invalidateQueries({ queryKey: ["tasks"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       queryClient.invalidateQueries({ queryKey: ["order"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
       setTaskToDelete(null);
@@ -405,28 +415,30 @@ export default function Tasks() {
         }
       />
 
+      <div className="mb-4 grid gap-2 sm:grid-cols-2"><Input aria-label="Search tasks" placeholder="Search task, notes or garment" value={search} onChange={e=>setSearch(e.target.value)}/><select aria-label="Task deadline" className="rounded-md border p-2 text-sm" value={deadline} onChange={e=>setDeadline(e.target.value)}><option value="all">All deadlines</option><option value="overdue">Overdue tasks</option><option value="missing">No deadline</option></select></div>
+      {isError&&<p role="alert" className="mb-4 text-sm">Task data unavailable. <button className="underline" onClick={()=>void refetch()}>Retry</button></p>}
       {/* Premium stat strip */}
       <div data-keep-cols className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
         <PremiumMetric
           label="To Do"
-          value={<AnimatedNumber value={stats.todo} />}
+          value={isLoading||isError?"—":<AnimatedNumber value={stats.todo} />}
           icon={ListTodo}
           accent
         />
         <PremiumMetric
           label="In Progress"
-          value={<AnimatedNumber value={stats.inProgress} />}
+          value={isLoading||isError?"—":<AnimatedNumber value={stats.inProgress} />}
           icon={Loader2}
         />
         <PremiumMetric
           label="Done"
-          value={<AnimatedNumber value={stats.done} />}
+          value={isLoading||isError?"—":<AnimatedNumber value={stats.done} />}
           icon={CheckCheck}
         />
       </div>
 
       {/* Grade summary — trainee + trainer/owner modes */}
-      {(traineeMode || graderMode) && (
+      {!isLoading&&!isError&&(traineeMode || graderMode) && (
         <SectionCard
           className="mb-5"
           bodyClassName="py-4"

@@ -71,6 +71,8 @@ function initialsOf(name: string) {
 
 export default function Fittings() {
   const go = useNav((s) => s.go);
+  const [search,setSearch]=useState("");
+  const [limit,setLimit]=useState(15);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("All");
   const qc = useQueryClient();
   const owner = useRole((s) => s.isOwner)();
@@ -88,7 +90,7 @@ export default function Fittings() {
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const { data, isLoading, isError } = useQuery<DashboardFittingsResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<DashboardFittingsResponse>({
     queryKey: ["dashboard"],
     queryFn: () => apiGet<DashboardFittingsResponse>("/api/dashboard"),
   });
@@ -96,14 +98,14 @@ export default function Fittings() {
   const fittings = data?.fittings ?? [];
 
   const filtered = useMemo(() => {
-    if (statusFilter === "All") return fittings;
-    return fittings.filter((f) => f.status === statusFilter);
-  }, [fittings, statusFilter]);
+    return fittings.filter(f=>(statusFilter==="All"||f.status===statusFilter)&&`${f.order?.customer?.name??""} ${f.order?.garmentDesign??""}`.toLowerCase().includes(search.trim().toLowerCase()));
+  }, [fittings, statusFilter, search]);
+  const overdue=filtered.filter(f=>f.status==="Scheduled"&&isOverdue(f.date)).sort((a,b)=>new Date(a.date).getTime()-new Date(b.date).getTime());
 
   const upcoming = useMemo(
     () =>
       [...filtered]
-        .filter((f) => f.status === "Scheduled")
+        .filter((f) => f.status === "Scheduled" && !isOverdue(f.date))
         .sort(
           (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
         ),
@@ -117,8 +119,8 @@ export default function Fittings() {
         .sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         )
-        .slice(0, 15),
-    [filtered]
+        .slice(0, limit),
+    [filtered,limit]
   );
 
   const stats = useMemo(() => {
@@ -162,22 +164,23 @@ export default function Fittings() {
         }
       />
 
+      <input aria-label="Search fittings" className="mb-4 w-full rounded-md border p-2 text-sm" placeholder="Search customer or garment" value={search} onChange={e=>{setSearch(e.target.value);setLimit(15);}}/>
       {/* Premium stat strip */}
       <div data-keep-cols className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-6">
         <PremiumMetric
-          label="Scheduled"
-          value={<AnimatedNumber value={stats.scheduled} />}
+          label="Upcoming"
+          value={isLoading||isError?"—":<AnimatedNumber value={stats.scheduled} />}
           icon={CalendarClock}
           accent
         />
         <PremiumMetric
           label="Completed (mo.)"
-          value={<AnimatedNumber value={stats.completedThisMonth} />}
+          value={isLoading||isError?"—":<AnimatedNumber value={stats.completedThisMonth} />}
           icon={CheckCircle2}
         />
         <PremiumMetric
           label="Alterations"
-          value={<AnimatedNumber value={stats.alterationsNeeded} />}
+          value={isLoading||isError?"—":<AnimatedNumber value={stats.alterationsNeeded} />}
           icon={Scissors}
         />
       </div>
@@ -186,7 +189,7 @@ export default function Fittings() {
         <SectionCard title="Error">
           <div className="flex items-center gap-2 text-sm text-stone-500">
             <AlertCircle className="w-4 h-4 text-[#800020]" />
-            Could not load fittings. Please try again.
+            Could not load fittings. <button className="underline" onClick={()=>void refetch()}>Retry</button>
           </div>
         </SectionCard>
       ) : isLoading ? (
@@ -200,6 +203,7 @@ export default function Fittings() {
         </div>
       ) : (
         <div className="grid gap-5">
+          {overdue.length>0&&<SectionCard title={`Overdue appointments · ${overdue.length}`} bodyClassName="p-0"><ul className="divide-y">{overdue.map(f=><FittingRow key={f.id} fitting={f} onClick={()=>go("order",{id:f.orderId})} onDelete={owner?()=>setToDelete(f):undefined}/>)}</ul></SectionCard>}
           <SectionCard
             title={`Upcoming · ${upcoming.length}`}
             bodyClassName="p-0"
@@ -257,6 +261,7 @@ export default function Fittings() {
         </div>
       )}
 
+      {!isLoading&&!isError&&filtered.filter(f=>f.status!=="Scheduled").length>limit&&<PremiumButton variant="outline" onClick={()=>setLimit(n=>n+15)}>Load more fitting history</PremiumButton>}
       {owner && (
         <ConfirmDeleteDialog
           open={!!toDelete}
@@ -271,7 +276,7 @@ export default function Fittings() {
           }
           confirmLabel="Delete fitting"
           loading={deleteMut.isPending}
-          onConfirm={() => toDelete && deleteMut.mutate(toDelete.id)}
+          onConfirm={() => toDelete && !deleteMut.isPending && deleteMut.mutate(toDelete.id)}
         />
       )}
     </div>
@@ -357,6 +362,7 @@ function FittingRow({
           )}
         </div>
 
+        {overdue&&<span className="sm:hidden text-xs text-amber-700">Overdue</span>}
         <StatusBadge status={fitting.status} />
 
         <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-stone-500 transition shrink-0" />
