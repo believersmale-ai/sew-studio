@@ -38,6 +38,7 @@ export async function PATCH(req:Request){
  const ctx=await getTenant();if(!ctx)return Response.json({error:"Unauthorized"},{status:401});
  if(ctx.role!=="madam")return Response.json({error:"Only the owner can manage products"},{status:403});
  const b=await req.json().catch(()=>null);
+ if(b?.action==="cost"){const cost=b.unitCost;if(typeof b.id!=="string"||!uuid.test(b.id)||(cost!==null&&(typeof cost!=="number"||!Number.isFinite(cost)||cost<0||cost>1000000||Math.abs(cost*100-Math.round(cost*100))>0.000001)))return Response.json({error:"Invalid production cost"},{status:400});try{const r=await getPool().query("update public.rtw_products set unit_cost=$3 where id=$1 and shop_id=$2 returning id",[b.id,ctx.shopId,cost]);return r.rowCount?Response.json({id:b.id}):Response.json({error:"Product not found"},{status:404});}catch{return Response.json({error:"Unable to save production cost"},{status:500});}}
  if(b?.action==="pricing"){
  const threshold=b.threshold, sale=b.salePrice===null?null:Number(b.salePrice), start=sale===null?null:new Date(b.start),end=sale===null?null:new Date(b.end);
  if(typeof b.id!=="string"||!uuid.test(b.id)||!Number.isInteger(threshold)||threshold<0||threshold>100000||(sale!==null&&(!Number.isFinite(sale)||sale<0.01||sale>1000000||Math.abs(sale*100-Math.round(sale*100))>0.000001||!start||!end||!Number.isFinite(start.getTime())||!Number.isFinite(end.getTime())||end<=start)))return Response.json({error:"Invalid promotion or stock threshold"},{status:400});
