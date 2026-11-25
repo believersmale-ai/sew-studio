@@ -27,6 +27,7 @@ export async function POST(req:Request,{params}:Ctx){
   const unitMinor=Math.round(Number(rows[0].price)*100),totalMinor=unitMinor*quantity;
   if(!Number.isSafeInteger(unitMinor)||unitMinor<=0||!Number.isSafeInteger(totalMinor)){await client.query("ROLLBACK");return Response.json({error:"Invalid product price"},{status:409});}
   const total=(totalMinor/100).toFixed(2);
+  await client.query("select set_config('rtw.stock_reason',$1,true)",["Order reservation"]);
   const stock=await client.query("update public.rtw_variants set stock=stock-$2 where id=$1 and stock >= $2",[variantId,quantity]);
   if(stock.rowCount!==1){await client.query("ROLLBACK");return Response.json({error:"Insufficient stock"},{status:409});}
   const order=await client.query("insert into public.rtw_orders(shop_id,product_id,variant_id,quantity,unit_price,total,customer_name,customer_phone,customer_email,delivery_address,delivery_city,delivery_notes,payment_method) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id,status,payment_status",[shopId,productId,variantId,quantity,rows[0].price,total,name,phone,email||null,address,city,notes||null,method]);
