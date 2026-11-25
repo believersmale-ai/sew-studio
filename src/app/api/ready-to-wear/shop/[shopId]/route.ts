@@ -6,7 +6,7 @@ const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function GET(_req:Request,{params}:Ctx){
  const {shopId}=await params;if(!uuid.test(shopId))return Response.json({error:"Invalid shop"},{status:400});
  const config=await paymentConfiguration();
- const {rows}=await getPool().query("select p.id,p.title,p.description,p.category,p.price,p.image_url,p.gallery_images,p.collection_name,coalesce(json_agg(json_build_object('id',v.id,'size',v.size,'color',v.color,'stock',v.stock)) filter(where v.id is not null),'[]') as variants from public.rtw_products p left join public.rtw_variants v on v.product_id=p.id where p.shop_id=$1 and p.published=true and p.archived_at is null and exists(select 1 from public.shops s where s.id=p.shop_id and s.suspended_at is null) group by p.id order by p.created_at desc",[shopId]);
+ const {rows}=await getPool().query("select p.id,p.title,p.description,p.category,case when p.sale_price is not null and now()>=p.sale_start and now()<p.sale_end then p.sale_price else p.price end as price,p.price as regular_price,p.image_url,p.gallery_images,p.collection_name,coalesce(json_agg(json_build_object('id',v.id,'size',v.size,'color',v.color,'stock',v.stock)) filter(where v.id is not null),'[]') as variants from public.rtw_products p left join public.rtw_variants v on v.product_id=p.id where p.shop_id=$1 and p.published=true and p.archived_at is null and exists(select 1 from public.shops s where s.id=p.shop_id and s.suspended_at is null) group by p.id order by p.created_at desc",[shopId]);
  return Response.json({products:rows,checkoutEnabled:config.enabled},{headers:{"Cache-Control":"no-store"}});
 }
 export async function POST(req:Request,{params}:Ctx){
@@ -22,10 +22,11 @@ export async function POST(req:Request,{params}:Ctx){
  const client=await getPool().connect();
  try{
   await client.query("BEGIN");
-  const {rows}=await client.query("select v.id,v.stock,p.price from public.rtw_variants v join public.rtw_products p on p.id=v.product_id where p.shop_id=$1 and p.published=true and p.archived_at is null and exists(select 1 from public.shops s where s.id=p.shop_id and s.suspended_at is null) and p.id=$2 and v.id=$3 for update of v,p",[shopId,productId,variantId]);
+  const {rows}=await client.query("select v.id,v.stock,case when p.sale_price is not null and now()>=p.sale_start and now()<p.sale_end then p.sale_price else p.price end as price from public.rtw_variants v join public.rtw_products p on p.id=v.product_id where p.shop_id=$1 and p.published=true and p.archived_at is null and exists(select 1 from public.shops s where s.id=p.shop_id and s.suspended_at is null) and p.id=$2 and v.id=$3 for update of v,p",[shopId,productId,variantId]);
   if(!rows.length||rows[0].stock<quantity){await client.query("ROLLBACK");return Response.json({error:"This size or colour is out of stock"},{status:409})}
   const unitMinor=Math.round(Number(rows[0].price)*100),totalMinor=unitMinor*quantity;
   if(!Number.isSafeInteger(unitMinor)||unitMinor<=0||!Number.isSafeInteger(totalMinor)){await client.query("ROLLBACK");return Response.json({error:"Invalid product price"},{status:409});}
+  if(!Number.isSafeInteger(b.expectedUnitMinor)||b.expectedUnitMinor!==unitMinor){await client.query("ROLLBACK");return Response.json({error:"Price changed. Refresh the collection and review the current price before ordering."},{status:409});}
   const total=(totalMinor/100).toFixed(2);
   await client.query("select set_config('rtw.stock_reason',$1,true)",["Order reservation"]);
   const stock=await client.query("update public.rtw_variants set stock=stock-$2 where id=$1 and stock >= $2",[variantId,quantity]);
