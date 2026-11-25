@@ -22,7 +22,7 @@ export async function POST(req:Request,{params}:Ctx){
  const client=await getPool().connect();
  try{
   await client.query("BEGIN");
-  const {rows}=await client.query("select v.id,v.stock,case when p.sale_price is not null and now()>=p.sale_start and now()<p.sale_end then p.sale_price else p.price end as price from public.rtw_variants v join public.rtw_products p on p.id=v.product_id where p.shop_id=$1 and p.published=true and p.archived_at is null and exists(select 1 from public.shops s where s.id=p.shop_id and s.suspended_at is null) and p.id=$2 and v.id=$3 for update of v,p",[shopId,productId,variantId]);
+  const {rows}=await client.query("select v.id,v.stock,p.unit_cost,case when p.sale_price is not null and now()>=p.sale_start and now()<p.sale_end then p.sale_price else p.price end as price from public.rtw_variants v join public.rtw_products p on p.id=v.product_id where p.shop_id=$1 and p.published=true and p.archived_at is null and exists(select 1 from public.shops s where s.id=p.shop_id and s.suspended_at is null) and p.id=$2 and v.id=$3 for update of v,p",[shopId,productId,variantId]);
   if(!rows.length||rows[0].stock<quantity){await client.query("ROLLBACK");return Response.json({error:"This size or colour is out of stock"},{status:409})}
   const unitMinor=Math.round(Number(rows[0].price)*100),totalMinor=unitMinor*quantity;
   if(!Number.isSafeInteger(unitMinor)||unitMinor<=0||!Number.isSafeInteger(totalMinor)){await client.query("ROLLBACK");return Response.json({error:"Invalid product price"},{status:409});}
@@ -31,7 +31,7 @@ export async function POST(req:Request,{params}:Ctx){
   await client.query("select set_config('rtw.stock_reason',$1,true)",["Order reservation"]);
   const stock=await client.query("update public.rtw_variants set stock=stock-$2 where id=$1 and stock >= $2",[variantId,quantity]);
   if(stock.rowCount!==1){await client.query("ROLLBACK");return Response.json({error:"Insufficient stock"},{status:409});}
-  const order=await client.query("insert into public.rtw_orders(shop_id,product_id,variant_id,quantity,unit_price,total,customer_name,customer_phone,customer_email,delivery_address,delivery_city,delivery_notes,payment_method) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) returning id,status,payment_status",[shopId,productId,variantId,quantity,rows[0].price,total,name,phone,email||null,address,city,notes||null,method]);
+  const order=await client.query("insert into public.rtw_orders(shop_id,product_id,variant_id,quantity,unit_price,total,customer_name,customer_phone,customer_email,delivery_address,delivery_city,delivery_notes,payment_method,unit_cost_snapshot) values($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) returning id,status,payment_status",[shopId,productId,variantId,quantity,rows[0].price,total,name,phone,email||null,address,city,notes||null,method,rows[0].unit_cost]);
   await client.query("COMMIT");
   return Response.json({orderId:order.rows[0].id,status:"Pending payment",paymentStatus:"Unpaid",total,paymentMethod:method,message:method==="manual"?"Order received. Contact the studio to arrange payment, then submit your transaction reference. Your order stays unpaid until the studio verifies receipt.":"Order created. Proceed to secure Paystack checkout."},{status:201});
  }catch{return Response.json({error:"Unable to place order"},{status:500})}finally{try{await client.query("ROLLBACK")}catch{}client.release()}
