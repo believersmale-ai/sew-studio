@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ADMIN_AREAS } from "@/lib/admin-access";
+import { AdminQuickLinks } from "./AdminQuickLinks";
 import {
   Activity,
   AlertCircle,
@@ -28,6 +29,11 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Eye,
+  EyeOff,
+  LockKeyhole,
+  Mail,
+  Sparkles,
   SlidersHorizontal,
   Users,
   X,
@@ -111,49 +117,109 @@ export function AdminPortalClient() {
   if (!admin) return <AdminLogin onLoggedIn={setAdmin} />;
   // Delegated admins without the Studios area get a simple home instead of the studios dashboard.
   if (admin.isSuper === false && !(admin.areas ?? []).includes("studios")) {
-    return <DelegateHome admin={admin} onLogout={() => setAdmin(null)} />;
+    return <><DelegateHome admin={admin} onLogout={() => setAdmin(null)} /><AdminQuickLinks /></>;
   }
-  return <AdminDashboard admin={admin} onLogout={() => setAdmin(null)} />;
+  return <><AdminDashboard admin={admin} onLogout={() => setAdmin(null)} /><AdminQuickLinks /></>;
 }
 
 function AdminLogin({ onLoggedIn }: { onLoggedIn: (admin: AdminProfile) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(event: React.FormEvent) {
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (loading) return;
     setError("");
     setLoading(true);
     try {
-      const result = await apiPost<{ admin: AdminProfile }>("/api/admin-auth/login", { email, password });
+      const result = await apiPost<{ admin: AdminProfile }>("/api/admin-auth/login", {
+        email: email.trim().toLowerCase(),
+        password,
+      });
+      setPassword("");
       onLoggedIn(result.admin);
     } catch (err) {
-      setError(apiErrorMessage(err, "Invalid email or password."));
+      setError(apiErrorMessage(err, "Unable to sign in. Check your credentials and try again."));
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="min-h-dvh flex items-center justify-center bg-[#FAF4F5] px-5 py-10">
-      <div className="w-full max-w-[410px]">
-        <div className="mb-7 flex items-center gap-3">
-          <div className="grid size-12 place-items-center rounded-2xl bg-[#315B4A] text-white shadow-sm"><ShieldCheck className="size-5" /></div>
-          <div><p className="text-xs font-semibold uppercase tracking-[.18em] text-[#527564]">Sewsiness</p><p className="text-sm text-slate-500">Platform operations</p></div>
+    <main className="relative isolate flex min-h-dvh flex-col overflow-x-hidden bg-[#FCF9F8] text-[#251F22] lg:h-dvh lg:min-h-0 lg:flex-row lg:overflow-hidden">
+      <section className="relative hidden h-full w-[48%] flex-col justify-between overflow-hidden bg-[#570D29] p-8 text-white lg:flex xl:p-12 2xl:p-16" aria-label="Sewsiness platform administration">
+        <div className="pointer-events-none absolute -right-32 -top-40 size-[540px] rounded-full border border-white/10" />
+        <div className="pointer-events-none absolute -right-12 -top-20 size-[370px] rounded-full border border-white/10" />
+        <div className="pointer-events-none absolute -bottom-52 -left-40 size-[620px] rounded-full bg-[#7E2844]/40" />
+        <div className="relative z-10 flex items-center gap-3">
+          <span className="grid size-12 place-items-center rounded-2xl border border-white/20 bg-white/10"><ShieldCheck className="size-6 text-[#E9C68D]" /></span>
+          <div><p className="text-lg font-bold tracking-[.14em]">SEWSINESS</p><p className="text-xs tracking-[.13em] text-white/65">FASHION ATELIER MANAGEMENT</p></div>
         </div>
         <SectionCard>
-          <div className="mb-6"><h1 className="font-display text-2xl font-semibold text-slate-900">System admin</h1><p className="mt-1 text-sm text-slate-500">Sign in to manage your platform.</p></div>
+          <div className="mb-6"><h1 className="font-sans text-2xl font-semibold text-slate-900">System admin</h1><p className="mt-1 text-sm text-slate-500">Sign in to manage your platform.</p></div>
           <form onSubmit={handleSubmit} className="space-y-4">
-            <label className="block text-xs font-medium text-slate-600">Email<input type="email" required autoComplete="username" autoFocus value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#527564] focus:ring-4 focus:ring-[#527564]/10" /></label>
-            <label className="block text-xs font-medium text-slate-600">Password<input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#527564] focus:ring-4 focus:ring-[#527564]/10" /></label>
+            <label className="block text-xs font-medium text-slate-600">Email<input type="email" required autoComplete="username" autoFocus value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#527564] focus:ring-2 focus:ring-[#527564]/30" /></label>
+            <label className="block text-xs font-medium text-slate-600">Password<input type="password" required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#527564] focus:ring-2 focus:ring-[#527564]/30" /></label>
             {error && <p role="alert" className="flex items-center gap-2 text-sm text-red-700"><AlertCircle className="size-4 shrink-0" />{error}</p>}
             <button type="submit" disabled={loading} className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#315B4A] text-sm font-medium text-white transition hover:bg-[#244638] disabled:opacity-60">{loading && <Loader2 className="size-4 animate-spin" />}{loading ? "Signing in…" : "Sign in securely"}</button>
+        <div className="relative z-10 max-w-lg">
+          <span className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#E9C68D]/40 px-4 py-2 text-xs font-semibold tracking-[.14em] text-[#E9C68D]"><Sparkles className="size-3.5" /> PLATFORM OPERATIONS</span>
+          <h1 className="font-display text-4xl font-semibold leading-[1.12] tracking-tight text-white xl:text-5xl 2xl:text-6xl"><span className="text-white">A clearer view.</span><br /><span className="text-[#E9C68D]">Better control.</span></h1>
+          <p className="mt-7 max-w-md text-base leading-8 text-white/75">A dedicated workspace for overseeing your studios, teams and the Sewsiness experience.</p>
+          <div className="mt-7 xl:mt-10 h-px w-20 bg-[#E9C68D]/70" />
+          <p className="mt-5 text-sm tracking-wide text-white/65">Design · Manage · Grow</p>
+        </div>
+        <div className="relative z-10 flex items-center gap-2 text-xs text-white/60"><LockKeyhole className="size-4 text-[#E9C68D]" /> Restricted platform access</div>
+      </section>
+
+      <section className="flex min-h-dvh w-full min-w-0 flex-1 flex-col px-5 py-5 sm:px-10 lg:h-full lg:min-h-0 lg:px-10 lg:py-5 xl:px-14 2xl:px-20">
+        <header className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 lg:hidden">
+            <span className="grid size-10 place-items-center rounded-xl bg-[#650D2C] text-[#E9C68D]"><ShieldCheck className="size-5" /></span>
+            <div><p className="text-sm font-bold tracking-[.16em] text-[#650D2C]">SEWSINESS</p><p className="text-[10px] tracking-wide text-slate-500">Platform operations</p></div>
+          </div>
+          <span className="ml-auto inline-flex items-center gap-2 rounded-full border border-[#EADDE1] bg-white px-3 py-1.5 text-[11px] font-semibold text-[#764457]"><span className="size-1.5 rounded-full bg-[#C7A56A]" /> SECURE ADMIN ACCESS</span>
+        </header>
+
+        <div className="mx-auto flex w-full max-w-[440px] flex-1 flex-col justify-center py-7 sm:py-10 lg:min-h-0 lg:py-3">
+          <div className="mb-6 xl:mb-8">
+            <span className="mb-4 inline-block text-xs font-semibold uppercase tracking-[.2em] text-[#946C49]">Administration portal</span>
+            <h2 className="font-display text-4xl font-semibold tracking-tight text-[#351322] sm:text-[44px]">Welcome back.</h2>
+            <p className="mt-3 text-sm leading-6 text-[#7E7479]">Sign in with your authorised administrator credentials to continue.</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="admin-email" className="mb-2 block text-sm font-semibold text-[#493A40]">Email address</label>
+              <div className="relative">
+                <Mail aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[#9E8C93]" />
+                <input id="admin-email" type="email" required autoComplete="username" autoCapitalize="none" spellCheck={false} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="admin@sewsiness.com" className="h-12 w-full rounded-xl border border-[#E6DCE0] bg-white pl-12 pr-4 text-sm text-[#351322] outline-none transition placeholder:text-[#B6A9AF] focus:border-[#800020] focus:ring-4 focus:ring-[#800020]/10" />
+              </div>
+            </div>
+            <div>
+              <label htmlFor="admin-password" className="mb-2 block text-sm font-semibold text-[#493A40]">Password</label>
+              <div className="relative">
+                <LockKeyhole aria-hidden="true" className="pointer-events-none absolute left-4 top-1/2 size-[18px] -translate-y-1/2 text-[#9E8C93]" />
+                <input id="admin-password" type={showPassword ? "text" : "password"} required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Enter your password" className="h-[54px] w-full rounded-xl border border-[#E6DCE0] bg-white pl-12 pr-12 text-sm text-[#351322] outline-none transition placeholder:text-[#B6A9AF] focus:border-[#800020] focus:ring-4 focus:ring-[#800020]/10" />
+                <button type="button" onClick={() => setShowPassword((value) => !value)} aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} className="absolute right-3 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-[#85757D] transition hover:bg-[#F7EFF2] hover:text-[#650D2C] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#800020]">{showPassword ? <EyeOff className="size-[18px]" /> : <Eye className="size-[18px]" />}</button>
+              </div>
+            </div>
+            <div className="flex justify-end"><a href="/admin/forgot-password" className="text-sm font-semibold text-[#720D31] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#720D31]">Forgot password?</a></div>
+            {error && <div role="alert" className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-5 text-red-800"><AlertCircle className="mt-0.5 size-4 shrink-0" />{error}</div>}
+            <button type="submit" disabled={loading} className="flex h-12 w-full items-center justify-center gap-2.5 rounded-xl bg-[#720D31] px-5 text-sm font-semibold text-white shadow-[0_12px_24px_-14px_rgba(114,13,49,.7)] transition hover:bg-[#570D29] focus-visible:outline focus-visible:outline-4 focus-visible:outline-[#E9C68D] disabled:cursor-wait disabled:opacity-60">{loading ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-[18px]" />}{loading ? "Signing in securely…" : "Sign in to platform"}{!loading && <ArrowRight className="ml-auto size-4" />}</button>
           </form>
-          <p className="mt-5 flex items-center gap-2 border-t border-slate-100 pt-4 text-xs text-slate-500"><ShieldCheck className="size-3.5 text-[#527564]" />Restricted to authorised platform administrators.</p>
-        </SectionCard>
-      </div>
+
+          <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#EDE3E5] bg-[#F8F3F3] p-4">
+            <ShieldCheck className="mt-0.5 size-[18px] shrink-0 text-[#800020]" />
+            <p className="text-xs leading-5 text-[#77696F]"><span className="font-semibold text-[#51313D]">Authorised personnel only.</span> Access is restricted to designated Sewsiness platform administrators.</p>
+          </div>
+        </div>
+
+        <footer className="mx-auto flex w-full max-w-[440px] flex-wrap items-center justify-between gap-2 border-t border-[#EDE5E6] pt-3 text-xs text-[#968A90]"><span>© {new Date().getFullYear()} Sewsiness</span><span>Design · Manage · Grow</span></footer>
+      </section>
     </main>
   );
 }
@@ -244,8 +310,8 @@ function AdminDashboard({ admin, onLogout }: { admin: AdminProfile; onLogout: ()
       <aside className={`fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-slate-200 bg-white px-4 py-5 transition-transform lg:translate-x-0 ${mobileNavOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center gap-3 px-2 pb-8">
           <div className="grid size-10 place-items-center rounded-xl bg-[#315B4A] text-white"><ShieldCheck className="size-5" /></div>
-          <div className="min-w-0"><p className="font-display text-lg font-semibold leading-tight">Sewsiness</p><p className="text-xs text-slate-500">System administration</p></div>
-          <button onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" className="ml-auto rounded-md p-1 text-slate-500 hover:bg-slate-100 lg:hidden"><X className="size-4" /></button>
+          <div className="min-w-0"><p className="font-sans text-lg font-semibold leading-tight">Sewsiness</p><p className="text-xs text-slate-500">System administration</p></div>
+          <button onClick={() => setMobileNavOpen(false)} aria-label="Close navigation" className="ml-auto grid size-11 place-items-center rounded-md text-slate-600 hover:bg-slate-100 lg:hidden"><X className="size-4" /></button>
         </div>
         <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[.16em] text-slate-500">Workspace</p>
         <nav className="space-y-1" aria-label="Admin sections">
@@ -260,7 +326,7 @@ function AdminDashboard({ admin, onLogout }: { admin: AdminProfile; onLogout: ()
 
       <div className="lg:pl-[248px]">
         <header className="sticky top-0 z-20 flex h-[68px] items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-7">
-          <div className="flex items-center gap-3"><button onClick={() => setMobileNavOpen(true)} aria-label="Open navigation" className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"><Menu className="size-5" /></button><div className="hidden text-xs text-slate-500 sm:block">Platform <ChevronRight className="mx-1 inline size-3" /> <span className="font-medium text-slate-700">{nav.find((item) => item.id === section)?.label}</span></div><div className="text-xs font-medium text-slate-700 sm:hidden">{nav.find((item) => item.id === section)?.label}</div></div>
+          <div className="flex items-center gap-3"><button onClick={() => setMobileNavOpen(true)} aria-label="Open navigation" className="grid size-11 place-items-center rounded-md text-slate-600 hover:bg-slate-100 lg:hidden"><Menu className="size-5" /></button><div className="hidden text-xs text-slate-500 sm:block">Platform <ChevronRight className="mx-1 inline size-3" /> <span className="font-medium text-slate-700">{nav.find((item) => item.id === section)?.label}</span></div><div className="text-xs font-medium text-slate-700 sm:hidden">{nav.find((item) => item.id === section)?.label}</div></div>
           <div className="flex items-center gap-2 sm:gap-4"><span className="hidden text-xs text-slate-500 md:block">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : ""}</span><button onClick={() => void reload()} disabled={loading} aria-label="Refresh platform data" className="grid size-9 place-items-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /></button><div className="grid size-9 place-items-center rounded-full bg-[#E8F0EB] text-xs font-semibold text-[#315B4A]" title={admin.email}>{initials(admin.fullName)}</div></div>
         </header>
 
@@ -314,7 +380,7 @@ function Overview({ shops, activeCount, suspendedCount, members, orders, recent,
         <SectionCard className="!p-0 overflow-hidden">
           <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4"><div><h2 className="text-sm font-semibold text-slate-900">Studio growth</h2><p className="mt-1 text-xs text-slate-500">New studio registrations · last 6 months</p></div><button onClick={onStudios} className="inline-flex items-center gap-1 text-xs font-medium text-[#416A59] hover:underline">View studios<ArrowRight className="size-3.5" /></button></div>
           <div className="px-5 pb-5 pt-4">
-            <div className="mb-3 flex items-end justify-between"><span className="font-display text-3xl font-semibold text-slate-900">{shops.length}</span><span className="inline-flex items-center gap-1 rounded-full bg-[#EEF4F0] px-2 py-1 text-xs font-medium text-[#416A59]"><ArrowUpRight className="size-3" />{recent.length} this month</span></div>
+            <div className="mb-3 flex items-end justify-between"><span className="font-sans text-2xl font-semibold text-slate-900">{shops.length}</span><span className="inline-flex items-center gap-1 rounded-full bg-[#EEF4F0] px-2 py-1 text-xs font-medium text-[#416A59]"><ArrowUpRight className="size-3" />{recent.length} this month</span></div>
             <div className="grid h-[150px] grid-cols-6 items-end gap-3 border-b border-slate-100 pb-2">
               {months.map((month) => <div key={month.label} className="flex h-full flex-col items-center justify-end gap-2"><span className="text-[11px] tabular-nums text-slate-500">{month.count || ""}</span><div className="w-full max-w-12 rounded-t-md bg-[#8EAB9A] transition-all" style={{ height: `${Math.max(4, (month.count / maxMonth) * 104)}px` }} /><span className="text-[11px] text-slate-500">{month.label}</span></div>)}
             </div>
@@ -353,13 +419,13 @@ function Overview({ shops, activeCount, suspendedCount, members, orders, recent,
 
 function MetricTile({ label, value, icon: Icon, foot, loading, accent }: { label: string; value: number; icon: React.ComponentType<{ className?: string }>; foot: string; loading: boolean; accent: string }) {
   const iconTone: Record<string, string> = { green: "bg-[#EEF4F0] text-[#416A59]", blue: "bg-blue-50 text-blue-700", violet: "bg-violet-50 text-violet-700", amber: "bg-amber-50 text-amber-700" };
-  return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p><span className={`grid size-9 place-items-center rounded-lg ${iconTone[accent]}`}><Icon className="size-4" /></span></div><p className="mt-3 font-display text-3xl font-semibold tabular-nums text-slate-900">{loading && value === 0 ? <span className="inline-block h-8 w-10 animate-pulse rounded bg-slate-100" /> : value.toLocaleString()}</p><p className="mt-2 truncate text-xs text-slate-500 sm:text-xs">{foot}</p></div>;
+  return <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs font-medium text-slate-500 sm:text-sm">{label}</p><span className={`grid size-9 place-items-center rounded-lg ${iconTone[accent]}`}><Icon className="size-4" /></span></div><p className="mt-3 font-sans text-2xl font-semibold tabular-nums text-slate-900">{loading && value === 0 ? <span className="inline-block h-8 w-10 animate-pulse rounded bg-slate-100" /> : value.toLocaleString()}</p><p className="mt-2 truncate text-xs text-slate-500 sm:text-xs">{foot}</p></div>;
 }
 
 function StudioDirectory({ shops, allCount, query, setQuery, filter, setFilter, loading, onSelect }: { shops: ShopSummary[]; allCount: number; query: string; setQuery: (query: string) => void; filter: StudioFilter; setFilter: (filter: StudioFilter) => void; loading: boolean; onSelect: (id: string) => void }) {
   const filters: { id: StudioFilter; label: string }[] = [{ id: "all", label: "All studios" }, { id: "active", label: "Active" }, { id: "suspended", label: "Suspended" }, { id: "setup", label: "Onboarding follow-up" }];
   return <SectionCard className="!p-0 overflow-hidden">
-    <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-slate-900">Studio directory</h2><p className="mt-1 text-xs text-slate-500">{shops.length} shown · {allCount} total studios</p></div><span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF4F0] px-2.5 py-1 text-xs font-medium text-[#416A59]"><Activity className="size-3.5" />Live account data</span></div><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="relative w-full md:max-w-sm"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search studio, owner or email…" aria-label="Search studios" className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-[#527564] focus:ring-4 focus:ring-[#527564]/10" /></div><div className="flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1">{filters.map((item) => <button key={item.id} onClick={() => setFilter(item.id)} className={`shrink-0 rounded-md px-3 py-1.5 text-xs transition ${filter === item.id ? "bg-white font-medium text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>{item.label}</button>)}</div></div></div>
+    <div className="flex flex-col gap-3 border-b border-slate-100 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-slate-900">Studio directory</h2><p className="mt-1 text-xs text-slate-500">{shops.length} shown · {allCount} total studios</p></div><span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF4F0] px-2.5 py-1 text-xs font-medium text-[#416A59]"><Activity className="size-3.5" />Live account data</span></div><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div className="relative w-full md:max-w-sm"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-500" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search studio, owner or email…" aria-label="Search studios" className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-[#527564] focus:ring-2 focus:ring-[#527564]/30" /></div><div className="flex gap-1 overflow-x-auto rounded-lg bg-slate-100 p-1">{filters.map((item) => <button key={item.id} onClick={() => setFilter(item.id)} className={`shrink-0 rounded-md px-3 py-1.5 text-xs transition ${filter === item.id ? "bg-white font-medium text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800"}`}>{item.label}</button>)}</div></div></div>
     <div className="hidden grid-cols-[minmax(220px,1.6fr)_minmax(150px,1fr)_90px_90px_100px_100px] gap-3 bg-slate-50/70 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-[.12em] text-slate-500 lg:grid"><span>Studio / owner</span><span>Plan</span><span>Members</span><span>Orders</span><span>Created</span><span>Status</span></div>
     {loading && shops.length === 0 ? <div className="grid min-h-48 place-items-center"><Loader2 className="size-5 animate-spin text-[#416A59]" /></div> : shops.length === 0 ? <div className="px-5 py-14 text-center"><span className="mx-auto grid size-11 place-items-center rounded-full bg-slate-100 text-slate-500"><SlidersHorizontal className="size-5" /></span><p className="mt-3 text-sm font-medium text-slate-700">No studios found</p><p className="mt-1 text-xs text-slate-500">Try another search or account filter.</p></div> : <div className="divide-y divide-slate-100">{shops.map((shop) => <button key={shop.id} onClick={() => onSelect(shop.id)} className="grid w-full grid-cols-1 items-center gap-2 px-4 py-3.5 text-left transition hover:bg-[#FAFBFA] sm:px-5 lg:grid-cols-[minmax(220px,1.6fr)_minmax(150px,1fr)_90px_90px_100px_100px] lg:gap-3">
       <span className="flex min-w-0 items-center gap-3"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-[#EEF4F0] text-[#416A59]"><Building2 className="size-4" /></span><span className="min-w-0"><span className="flex items-center gap-2"><span className="truncate text-sm font-medium text-slate-800">{shop.name}</span><span className="lg:hidden"><StatusPill suspended={Boolean(shop.suspendedAt)} /></span></span><span className="mt-0.5 block truncate text-xs text-slate-500">{shop.ownerName || "Owner not set"} · {shop.ownerEmail || shop.slug}</span></span></span>
@@ -395,7 +461,7 @@ function MenuManagement() {
   const sections = [...new Set(ordered.map((menu) => menu.section))];
 
   return <div className="space-y-5">
-    <div className="grid gap-4 sm:grid-cols-3"><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Features available</p><p className="mt-2 font-display text-2xl font-semibold">{loading ? "—" : enabledCount}<span className="ml-1 text-sm font-normal text-slate-500">/ {menus.length}</span></p></div><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Currently disabled</p><p className="mt-2 font-display text-2xl font-semibold">{loading ? "—" : menus.length - enabledCount}</p></div><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Scope</p><p className="mt-2 text-sm font-semibold text-slate-800">All studios</p><p className="mt-1 text-xs text-slate-500">Changes apply platform-wide.</p></div></div>
+    <div className="grid gap-4 sm:grid-cols-3"><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Features available</p><p className="mt-2 font-sans text-2xl font-semibold">{loading ? "—" : enabledCount}<span className="ml-1 text-sm font-normal text-slate-500">/ {menus.length}</span></p></div><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Currently disabled</p><p className="mt-2 font-sans text-2xl font-semibold">{loading ? "—" : menus.length - enabledCount}</p></div><div className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs text-slate-500">Scope</p><p className="mt-2 text-sm font-semibold text-slate-800">All studios</p><p className="mt-1 text-xs text-slate-500">Changes apply platform-wide.</p></div></div>
     <SectionCard className="!p-0 overflow-hidden" title="Platform features" description="Control which workspace menus are available to every studio. Changes apply immediately.">
       {error && <div role="alert" className="mx-5 mt-4 flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-800"><span className="flex items-center gap-2"><AlertCircle className="size-4 shrink-0" />{error}</span><button onClick={load} className="font-medium underline">Retry</button></div>}
       {loading ? <div className="grid min-h-48 place-items-center"><Loader2 className="size-5 animate-spin text-[#416A59]" /></div> : <div>{sections.map((section) => <div key={section}><div className="border-y border-slate-100 bg-slate-50/70 px-5 py-2 text-[11px] font-semibold uppercase tracking-[.14em] text-slate-500 first:border-t-0">{section}</div>{ordered.filter((menu) => menu.section === section).map((menu) => <div key={menu.key} className="flex items-center gap-3 border-b border-slate-100 px-5 py-3.5 last:border-0"><div className={`grid size-9 shrink-0 place-items-center rounded-lg ${menu.enabled ? "bg-[#EEF4F0] text-[#416A59]" : "bg-slate-100 text-slate-500"}`}><ListChecks className="size-4" /></div><div className="min-w-0 flex-1"><p className="text-sm font-medium text-slate-800">{menu.label}</p><p className="mt-0.5 text-xs text-slate-500">{menu.enabled ? "Available in studio workspaces" : "Hidden from studio workspaces"}</p></div><button type="button" role="switch" aria-checked={menu.enabled} aria-label={`${menu.enabled ? "Disable" : "Enable"} ${menu.label}`} disabled={savingKey !== null} onClick={() => void toggleMenu(menu)} className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-50 ${menu.enabled ? "bg-[#416A59]" : "bg-slate-300"}`}><span className={`absolute top-0.5 grid size-5 place-items-center rounded-full bg-white shadow-sm transition-all ${menu.enabled ? "left-[22px]" : "left-0.5"}`}>{savingKey === menu.key ? <Loader2 className="size-3 animate-spin text-slate-500" /> : menu.enabled ? <Check className="size-3 text-[#416A59]" /> : null}</span></button><span className={`hidden w-[62px] text-right text-xs sm:block ${menu.enabled ? "text-[#416A59]" : "text-slate-500"}`}>{savingKey === menu.key ? "Saving…" : menu.enabled ? "Enabled" : "Disabled"}</span></div>)}</div>)}</div>}
