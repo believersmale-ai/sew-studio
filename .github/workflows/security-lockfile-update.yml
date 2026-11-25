@@ -1,13 +1,11 @@
 name: Security lockfile update
 on:
-  push:
-    branches: [fix/security-lockfile-update]
-    paths: [.github/workflows/security-lockfile-update.yml]
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
   update:
-    if: github.repository == 'believersmale-ai/sew-studio' && github.ref == 'refs/heads/fix/security-lockfile-update'
+    if: github.repository == 'believersmale-ai/sew-studio' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -29,6 +27,6 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "Apply compatible dependency security updates"
-          git push origin HEAD:refs/heads/fix/security-lockfile-update
+          git push origin HEAD:refs/heads/security/dependency-update-${{ github.run_id }}
       - name: Check remaining production vulnerabilities
         run: npm audit --omit=dev --audit-level=high
