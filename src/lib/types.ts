@@ -272,6 +272,8 @@ export interface Settings {
   invoicePrefix?: string;
   // Standard overhead-recovery-rate costing (see src/lib/format.ts)
   overheadRecoveryBasis?: number;
+  overheadAllocationMethod?: 'material' | 'revenue';
+  overheadRevenueBasis?: number;
   /** Default mark-up % on True Cost, pre-filled when pricing an order. */
   defaultMarkupPercent?: number;
   quoteGarmentLabour?: import("@/lib/quote-pricing").GarmentLabourRate[];
