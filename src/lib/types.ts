@@ -107,6 +107,9 @@ export interface Order {
   otherCost?: number;
   /** Mark-up % on True Cost used when the order was priced; null = priced by hand. */
   markupPercent?: number | null;
+  overheadAmountSnapshot?: number | null;
+  overheadRateSnapshot?: number | null;
+  overheadAllocationMethod?: 'material' | 'revenue' | null;
   /** Price True Costing suggested when the order was booked. */
   suggestedPrice?: number | null;
   notes?: string | null;
