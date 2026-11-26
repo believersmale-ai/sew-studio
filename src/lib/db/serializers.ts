@@ -379,6 +379,8 @@ export function serializeSettings(s: Record<string, any>) {
     taxId: s.tax_id || "",
     invoicePrefix: s.invoice_prefix || "INV",
     overheadRecoveryBasis: s.overhead_recovery_basis,
+    overheadAllocationMethod: s.overhead_allocation_method ?? 'material',
+    overheadRevenueBasis: Number(s.overhead_revenue_basis) || 0,
     defaultMarkupPercent: s.default_markup_percent ?? 30,
     quoteGarmentLabour: s.quote_garment_labour ?? undefined,
     quoteComplexityLevels: s.quote_complexity_levels ?? undefined,
