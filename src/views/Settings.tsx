@@ -365,7 +365,6 @@ export default function Settings() {
                 onChange={(e) => setStudioNameField(e.target.value)}
                 placeholder="e.g. Adom Couture"
               />
-              </>}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -584,6 +583,7 @@ export default function Settings() {
                   ? "Applied to every order: overhead margin = fabric cost × this rate."
                   : "Until this is set, the flat overhead amount below is added to each order instead."}
               </p>
+              </>}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
