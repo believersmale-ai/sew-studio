@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -17,9 +17,11 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  Camera,
 } from "lucide-react";
 import { PremiumButton } from "@/components/atelier/PremiumButton";
 import { SectionCard } from "@/components/atelier/SectionCard";
+import { uploadImage } from "@/lib/imageUpload";
 import { ImageUpload } from "@/components/atelier/ImageUpload";
 import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth, type AuthUser } from "@/stores/auth";
@@ -35,6 +37,12 @@ interface ProfileDetails extends AuthUser {
   yearsExperience?: number | null;
   country?: string | null;
 }
+
+const COUNTRY_CODES = "AD AE AF AG AI AL AM AO AQ AR AS AT AU AW AX AZ BA BB BD BE BF BG BH BI BJ BL BM BN BO BQ BR BS BT BV BW BY BZ CA CC CD CF CG CH CI CK CL CM CN CO CR CU CV CW CX CY CZ DE DJ DK DM DO DZ EC EE EG EH ER ES ET FI FJ FK FM FO FR GA GB GD GE GF GG GH GI GL GM GN GP GQ GR GS GT GU GW GY HK HM HN HR HT HU ID IE IL IM IN IO IQ IR IS IT JE JM JO JP KE KG KH KI KM KN KP KR KW KY KZ LA LB LC LI LK LR LS LT LU LV LY MA MC MD ME MF MG MH MK ML MM MN MO MP MQ MR MS MT MU MV MW MX MY MZ NA NC NE NF NG NI NL NO NP NR NU NZ OM PA PE PF PG PH PK PL PM PN PR PS PT PW PY QA RE RO RS RU RW SA SB SC SD SE SG SH SI SJ SK SL SM SN SO SR SS ST SV SX SY SZ TC TD TF TG TH TJ TK TL TM TN TO TR TT TV TW TZ UA UG UM US UY UZ VA VC VE VG VI VN VU WF WS YE YT ZA ZM ZW".split(" ");
+const COUNTRY_NAMES = (() => {
+  const names = new Intl.DisplayNames(["en"], { type: "region" });
+  return COUNTRY_CODES.map(code => names.of(code) || code).sort((a,b)=>a.localeCompare(b));
+})();
 
 const ROLE_NAMES: Record<string, string> = {
   madam: "Studio owner",
@@ -91,6 +99,25 @@ export default function UserProfile() {
   const [avatarUrl, setAvatarUrl] = useState("");
   const [avatarBroken, setAvatarBroken] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
+
+  async function choosePhoto(file?: File) {
+    if (!file || photoBusy || saving) return;
+    setPhotoBusy(true);
+    try {
+      setAvatarUrl(await uploadImage(file, "avatar"));
+      setAvatarBroken(false);
+      if (detailsRef.current) detailsRef.current.open = true;
+      toast.success("Photo ready. Save profile to apply it.");
+    } catch (err) {
+      toast.error(extractApiErrorMessage(err, "Photo upload failed."));
+    } finally {
+      setPhotoBusy(false);
+      if (photoInput.current) photoInput.current.value = "";
+    }
+  }
 
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -127,6 +154,7 @@ export default function UserProfile() {
 
   async function save(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (photoBusy) return;
     setSaving(true);
     try {
       if (isSelf) {
@@ -213,10 +241,10 @@ export default function UserProfile() {
           >
             <div className="flex items-center gap-3 p-4 sm:gap-5 sm:p-6">
               <div className="relative shrink-0">
-                {profile.avatarUrl && !avatarBroken ? (
+                {avatarUrl && !avatarBroken ? (
                    
                   <img
-                    src={profile.avatarUrl}
+                    src={avatarUrl}
                     alt={`${profile.fullName} profile picture`}
                     onError={() => setAvatarBroken(true)}
                     className="size-16 rounded-full object-cover sm:size-20 border border-[#EEDFE3]"
@@ -229,9 +257,10 @@ export default function UserProfile() {
                     {initialsOf(profile.fullName || profile.email)}
                   </div>
                 )}
-                <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-white bg-[#4A6B53]">
-                  <ShieldCheck className="size-2.5 text-white" />
-                </span>
+                {showEditForm ? <>
+                  <button type="button" disabled={photoBusy || saving} aria-label="Upload profile photo" onClick={()=>photoInput.current?.click()} className="absolute -bottom-2 -right-2 grid size-9 place-items-center rounded-full border-2 border-white bg-[#800020] text-white disabled:opacity-50"><Camera className="size-4" /></button>
+                  <input ref={photoInput} type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" tabIndex={-1} aria-label="Choose profile photo" onChange={e=>void choosePhoto(e.target.files?.[0])}/>
+                </> : <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-white bg-[#4A6B53]"><ShieldCheck className="size-2.5 text-white" /></span>}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-stone-400 mb-1">
@@ -258,7 +287,7 @@ export default function UserProfile() {
           </div>
 
           <div className="grid min-w-0 gap-3">
-            <details className="group min-w-0 rounded-xl border border-[#EEDFE3] bg-white" open={!isSelf || undefined}>
+            <details ref={detailsRef} className="group min-w-0 rounded-xl border border-[#EEDFE3] bg-white" open={!isSelf || undefined}>
               <summary className="flex cursor-pointer list-none items-center gap-3 p-4 text-sm font-semibold text-[#2F151B]"><UserRound className="size-5 text-[#800020]" /><span className="flex-1">{isSelf ? "Personal & professional information" : "Member details"}</span><ChevronDown className="size-4 group-open:rotate-180" /></summary>
               <div className="border-t border-[#EEDFE3] p-4">
               {showEditForm ? (
@@ -290,13 +319,13 @@ export default function UserProfile() {
                   <div className="sm:col-span-2 border-t border-[#EEDFE3] pt-3 text-sm font-semibold text-[#2F151B]">Professional profile</div>
                   <label className="text-xs font-medium text-stone-600">Certification / qualifications<input maxLength={500} value={certification} onChange={e=>setCertification(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /></label>
                   <label className="text-xs font-medium text-stone-600">Years of experience<input type="number" min={0} max={80} value={yearsExperience} onChange={e=>setYearsExperience(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /></label>
-                  <label className="text-xs font-medium text-stone-600">Country of location<input maxLength={100} autoComplete="country-name" value={country} onChange={e=>setCountry(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /></label>
+                  <label className="text-xs font-medium text-stone-600">Country of location<input maxLength={100} autoComplete="country-name" list="profile-country-options" value={country} onChange={e=>setCountry(e.target.value)} className="mt-2 h-11 w-full rounded-md border border-[#EEDFE3] px-3 text-sm" /><datalist id="profile-country-options">{COUNTRY_NAMES.map(name=><option key={name} value={name}/>)}</datalist></label>
                   <div className="sm:col-span-2">
                     <p className="text-xs font-medium text-stone-600 mb-2">Profile picture</p>
                     <ImageUpload
                       kind="avatar"
                       value={avatarUrl}
-                      onChange={setAvatarUrl}
+                      onChange={url=>{setAvatarUrl(url);setAvatarBroken(false);}}
                       label="Upload photo"
                       hint="A clear, front-facing photo works best · JPG, PNG or WebP · up to 5 MB"
                     />
@@ -305,7 +334,7 @@ export default function UserProfile() {
                     <p className="text-xs text-stone-400">
                       {isSelf ? "Review your details before saving." : "Visible to studio owners and trainers."}
                     </p>
-                    <PremiumButton type="submit" loading={saving}>
+                    <PremiumButton type="submit" loading={saving} disabled={photoBusy}>
                       <Save className="size-4" /> Save profile
                     </PremiumButton>
                   </div>
