@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 
 /** Phone menu that closes after you tap a link, press Escape or tap outside (a bare <details> stays open). */
-export function MobileMenu({ items }: { items: { label: string; href: string }[] }) {
+export function MobileMenu({ items, signInHref, signInLabel }: { items: { label: string; href: string }[]; signInHref?: string; signInLabel?: string }) {
   const [open, setOpen] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -29,6 +29,7 @@ export function MobileMenu({ items }: { items: { label: string; href: string }[]
           {items.map((item) => /^https?:\/\//i.test(item.href)
             ? <a key={`${item.href}-${item.label}`} href={item.href} target="_blank" rel="noopener noreferrer" className={cls} onClick={() => setOpen(false)}>{item.label}</a>
             : <Link key={`${item.href}-${item.label}`} href={item.href} className={cls} onClick={() => setOpen(false)}>{item.label}</Link>)}
+          {signInHref && <div className="mt-2 border-t border-[#eadde0] pt-2"><a href={signInHref} onClick={()=>setOpen(false)} className="block rounded-lg bg-[#800020] px-4 py-3 text-center text-sm font-semibold text-white hover:bg-[#650019]">{signInLabel || "Sign in"}</a></div>}
         </div>
       )}
     </div>
