@@ -44,10 +44,10 @@ function SiteHeader({ content }: { content: WebsiteContent }) {
           {[...nav.items.filter((item)=>item.href!=="/ready-to-wear"),{href:"/ready-to-wear",label:"Ready to Wear"}].map((item) => <NavLink key={`${item.href}-${item.label}`} href={item.href} className="text-[13px] font-semibold text-[#765d63] transition hover:text-[#800020]">{item.label}</NavLink>)}
         </nav>
         <div className="flex shrink-0 items-center gap-2">
-          <a href={studioUrl} className="inline-flex h-11 items-center gap-1.5 rounded-lg bg-[#800020] px-3 text-[13px] sm:px-4 font-semibold text-white transition-colors hover:bg-[#650019]">
+          <a href={studioUrl} className="hidden h-11 items-center gap-1.5 rounded-lg bg-[#800020] px-3 text-[13px] sm:px-4 font-semibold text-white transition-colors hover:bg-[#650019] xl:inline-flex">
             <span className="whitespace-nowrap"><span className="hidden sm:inline">{nav.enterLabel}</span><span className="sm:hidden">{nav.enterLabelShort}</span></span> <ArrowUpRight className="hidden size-4 sm:block" />
           </a>
-          <MobileMenu items={[...nav.items.filter((item)=>item.href!=="/ready-to-wear"),{href:"/ready-to-wear",label:"Ready to Wear"}]} />
+          <MobileMenu signInHref={studioUrl} signInLabel={nav.enterLabelShort} items={[...nav.items.filter((item)=>item.href!=="/ready-to-wear"),{href:"/ready-to-wear",label:"Ready to Wear"}]} />
         </div>
       </div>
     </header>
